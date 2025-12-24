@@ -108,4 +108,3 @@ export interface HttpClientOptions {
     ignoreCertErrors: boolean;
     verbose: boolean;
 }
-//# sourceMappingURL=types.d.ts.map

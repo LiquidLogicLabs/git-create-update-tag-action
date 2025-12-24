@@ -37,4 +37,3 @@ export declare class Logger {
      */
     logGitCommand(command: string, args: string[]): void;
 }
-//# sourceMappingURL=logger.d.ts.map

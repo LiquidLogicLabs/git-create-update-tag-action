@@ -110,6 +110,8 @@ describe('getInputs', () => {
                 return 'true';
             if (name === 'verbose')
                 return 'true';
+            if (name === 'push_tag')
+                return 'true';
             return '';
         });
         const inputs = (0, config_1.getInputs)();
@@ -118,6 +120,27 @@ describe('getInputs', () => {
         expect(inputs.ignoreCertErrors).toBe(true);
         expect(inputs.force).toBe(true);
         expect(inputs.verbose).toBe(true);
+        expect(inputs.pushTag).toBe(true);
+    });
+    it('should default push_tag to true', () => {
+        core.getInput.mockImplementation((name) => {
+            if (name === 'tag_name')
+                return 'v1.0.0';
+            return '';
+        });
+        const inputs = (0, config_1.getInputs)();
+        expect(inputs.pushTag).toBe(true);
+    });
+    it('should parse push_tag as false when set', () => {
+        core.getInput.mockImplementation((name) => {
+            if (name === 'tag_name')
+                return 'v1.0.0';
+            if (name === 'push_tag')
+                return 'false';
+            return '';
+        });
+        const inputs = (0, config_1.getInputs)();
+        expect(inputs.pushTag).toBe(false);
     });
     it('should parse optional string inputs', () => {
         core.getInput.mockImplementation((name) => {

@@ -1,6 +1,5 @@
 import { PlatformAPI, TagOptions, TagResult, RepositoryInfo, PlatformConfig } from '../types';
 import { Logger } from '../logger';
-import * as exec from '@actions/exec';
 import {
   tagExistsLocally,
   createTag as createTagLocal,

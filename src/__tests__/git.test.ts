@@ -1,5 +1,4 @@
 import * as exec from '@actions/exec';
-import * as io from '@actions/io';
 import {
   isGitRepository,
   tagExistsLocally,
@@ -71,7 +70,6 @@ describe('tagExistsLocally', () => {
 
 describe('getHeadSha', () => {
   it('should return HEAD SHA', async () => {
-    const output: string[] = [];
     (exec.exec as jest.Mock).mockImplementation((command, args, options) => {
       if (options?.listeners?.stdout) {
         options.listeners.stdout(Buffer.from('abc123def456\n'));
@@ -95,7 +93,6 @@ describe('createTag', () => {
       .mockResolvedValueOnce(0) // git tag succeeds
       .mockResolvedValueOnce(0); // getTagSha succeeds
 
-    const output: string[] = [];
     (exec.exec as jest.Mock).mockImplementation((command, args, options) => {
       if (command === 'git' && args[0] === 'rev-parse') {
         if (options?.listeners?.stdout) {
@@ -131,7 +128,6 @@ describe('createTag', () => {
       .mockResolvedValueOnce(0) // git tag succeeds
       .mockResolvedValueOnce(0); // getTagSha succeeds
 
-    const output: string[] = [];
     (exec.exec as jest.Mock).mockImplementation((command, args, options) => {
       if (command === 'git' && args[0] === 'rev-parse') {
         if (options?.listeners?.stdout) {
@@ -185,7 +181,6 @@ describe('createTag', () => {
       .mockResolvedValueOnce(0) // git tag succeeds
       .mockResolvedValueOnce(0); // getTagSha succeeds
 
-    const output: string[] = [];
     (exec.exec as jest.Mock).mockImplementation((command, args, options) => {
       if (command === 'git' && args[0] === 'rev-parse') {
         if (options?.listeners?.stdout) {
@@ -217,7 +212,6 @@ describe('createTag', () => {
       .mockResolvedValueOnce(0) // git tag -s succeeds
       .mockResolvedValueOnce(0); // getTagSha succeeds
 
-    const output: string[] = [];
     (exec.exec as jest.Mock).mockImplementation((command, args, options) => {
       if (command === 'git' && args[0] === 'rev-parse') {
         if (options?.listeners?.stdout) {

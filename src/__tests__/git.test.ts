@@ -120,6 +120,15 @@ describe('createTag', () => {
 
     expect(result.tagName).toBe('v1.0.0');
     expect(result.created).toBe(true);
+    
+    // Verify the exact git command arguments
+    expect(exec.exec).toHaveBeenCalledWith(
+      'git',
+      ['tag', '-a', 'v1.0.0', 'commit-sha'],
+      expect.objectContaining({
+        input: expect.any(Buffer)
+      })
+    );
   });
 
   it('should create lightweight tag without message', async () => {

@@ -13,6 +13,11 @@ export declare function tagExistsLocally(tagName: string, logger: Logger): Promi
  */
 export declare function getHeadSha(logger: Logger): Promise<string>;
 /**
+ * Ensure git user.name and user.email are configured
+ * Returns true if configuration was set, false if already configured
+ */
+export declare function ensureGitUserConfig(logger: Logger, userName?: string, userEmail?: string): Promise<boolean>;
+/**
  * Create a tag using Git CLI
  */
 export declare function createTag(options: TagOptions, logger: Logger): Promise<TagResult>;

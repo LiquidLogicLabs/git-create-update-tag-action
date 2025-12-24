@@ -24,6 +24,8 @@ export interface ActionInputs {
     force: boolean;
     verbose: boolean;
     pushTag: boolean;
+    gitUserName?: string;
+    gitUserEmail?: string;
 }
 /**
  * Action outputs
@@ -67,6 +69,8 @@ export interface TagOptions {
     gpgKeyId?: string;
     force: boolean;
     verbose: boolean;
+    gitUserName?: string;
+    gitUserEmail?: string;
 }
 /**
  * Tag operation result

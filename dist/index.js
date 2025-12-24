@@ -25738,6 +25738,8 @@ function getInputs() {
     const force = getBooleanInput('force', false);
     const verbose = getBooleanInput('verbose', false);
     const pushTag = getBooleanInput('push_tag', true);
+    const gitUserName = getOptionalInput('git_user_name');
+    const gitUserEmail = getOptionalInput('git_user_email');
     // Validate GPG signing requirements
     if (gpgSign && !tagMessage) {
         throw new Error('gpg_sign requires tag_message (GPG signing only works with annotated tags)');
@@ -25769,7 +25771,9 @@ function getInputs() {
         ignoreCertErrors,
         force,
         verbose,
-        pushTag
+        pushTag,
+        gitUserName,
+        gitUserEmail
     };
 }
 
@@ -25818,6 +25822,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.isGitRepository = isGitRepository;
 exports.tagExistsLocally = tagExistsLocally;
 exports.getHeadSha = getHeadSha;
+exports.ensureGitUserConfig = ensureGitUserConfig;
 exports.createTag = createTag;
 exports.getTagSha = getTagSha;
 exports.pushTag = pushTag;
@@ -25870,11 +25875,122 @@ async function getHeadSha(logger) {
     return output.join('').trim();
 }
 /**
+ * Ensure git user.name and user.email are configured
+ * Returns true if configuration was set, false if already configured
+ */
+async function ensureGitUserConfig(logger, userName, userEmail) {
+    // Check if git config is already set
+    let nameSet = false;
+    let emailSet = false;
+    try {
+        const nameOutput = [];
+        await exec.exec('git', ['config', '--get', 'user.name'], {
+            silent: true,
+            listeners: {
+                stdout: (data) => {
+                    nameOutput.push(data.toString());
+                }
+            },
+            ignoreReturnCode: true
+        });
+        nameSet = nameOutput.join('').trim().length > 0;
+    }
+    catch {
+        nameSet = false;
+    }
+    try {
+        const emailOutput = [];
+        await exec.exec('git', ['config', '--get', 'user.email'], {
+            silent: true,
+            listeners: {
+                stdout: (data) => {
+                    emailOutput.push(data.toString());
+                }
+            },
+            ignoreReturnCode: true
+        });
+        emailSet = emailOutput.join('').trim().length > 0;
+    }
+    catch {
+        emailSet = false;
+    }
+    // If both are already set, no need to configure
+    if (nameSet && emailSet) {
+        logger.debug('Git user.name and user.email already configured');
+        return false;
+    }
+    // Determine values to use
+    let finalName = userName;
+    let finalEmail = userEmail;
+    // Auto-detect from environment variables if not provided
+    if (!finalName) {
+        finalName =
+            process.env.GITHUB_ACTOR ||
+                process.env.GITEA_ACTOR ||
+                process.env.CI_COMMIT_AUTHOR ||
+                'GitHub Actions';
+    }
+    if (!finalEmail) {
+        // Try to construct email from actor
+        const actor = process.env.GITHUB_ACTOR ||
+            process.env.GITEA_ACTOR ||
+            process.env.CI_COMMIT_AUTHOR;
+        if (actor) {
+            // Determine platform and use appropriate noreply email format
+            const githubServerUrl = process.env.GITHUB_SERVER_URL;
+            const giteaServerUrl = process.env.GITEA_SERVER_URL;
+            if (githubServerUrl || process.env.GITHUB_ACTOR) {
+                // GitHub format: actor@users.noreply.{hostname}
+                const hostname = githubServerUrl
+                    ? githubServerUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')
+                    : 'github.com';
+                finalEmail = `${actor}@users.noreply.${hostname}`;
+            }
+            else if (giteaServerUrl || process.env.GITEA_ACTOR) {
+                // Gitea format: actor@noreply.{hostname}
+                const hostname = giteaServerUrl
+                    ? giteaServerUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')
+                    : 'gitea.com';
+                finalEmail = `${actor}@noreply.${hostname}`;
+            }
+            else {
+                // Default format for other platforms
+                const serverUrl = process.env.CI_SERVER_URL || 'github.com';
+                const hostname = serverUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
+                finalEmail = `${actor}@noreply.${hostname}`;
+            }
+        }
+        else {
+            finalEmail = 'actions@github.com';
+        }
+    }
+    // Set git config (local to repository)
+    if (!nameSet && finalName) {
+        logger.debug(`Setting git user.name to: ${finalName}`);
+        await exec.exec('git', ['config', '--local', 'user.name', finalName], {
+            silent: true
+        });
+    }
+    if (!emailSet && finalEmail) {
+        logger.debug(`Setting git user.email to: ${finalEmail}`);
+        await exec.exec('git', ['config', '--local', 'user.email', finalEmail], {
+            silent: true
+        });
+    }
+    return true;
+}
+/**
  * Create a tag using Git CLI
  */
 async function createTag(options, logger) {
-    const { tagName, sha, message, gpgSign, gpgKeyId } = options;
+    const { tagName, sha, message, gpgSign, gpgKeyId, gitUserName, gitUserEmail } = options;
     logger.info(`Creating tag: ${tagName} at ${sha}`);
+    // Determine if this will be an annotated tag
+    const isAnnotatedTag = !!message || gpgSign;
+    // Ensure git user config is set for annotated tags (required by Git)
+    if (isAnnotatedTag) {
+        await ensureGitUserConfig(logger, gitUserName, gitUserEmail);
+    }
     // Check if tag already exists
     const exists = await tagExistsLocally(tagName, logger);
     if (exists && !options.force) {
@@ -25902,8 +26018,9 @@ async function createTag(options, logger) {
             tagArgs.push('-u', gpgKeyId);
         }
     }
-    else {
-        tagArgs.push('-a'); // Annotated tag (if message provided)
+    else if (message) {
+        // Only add -a flag if message is provided (annotated tag)
+        tagArgs.push('-a');
     }
     tagArgs.push(tagName);
     if (sha) {
@@ -26155,7 +26272,9 @@ async function run() {
             gpgSign: inputs.gpgSign,
             gpgKeyId: inputs.gpgKeyId,
             force: inputs.force,
-            verbose: inputs.verbose
+            verbose: inputs.verbose,
+            gitUserName: inputs.gitUserName,
+            gitUserEmail: inputs.gitUserEmail
         };
         let result;
         if (useLocalGit && !usePlatformAPI) {

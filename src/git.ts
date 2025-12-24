@@ -127,13 +127,28 @@ export async function ensureGitUserConfig(
       process.env.GITEA_ACTOR ||
       process.env.CI_COMMIT_AUTHOR;
     if (actor) {
-      // Use noreply email format
-      const serverUrl =
-        process.env.GITHUB_SERVER_URL ||
-        process.env.GITEA_SERVER_URL ||
-        'github.com';
-      const hostname = serverUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
-      finalEmail = `${actor}@noreply.${hostname}`;
+      // Determine platform and use appropriate noreply email format
+      const githubServerUrl = process.env.GITHUB_SERVER_URL;
+      const giteaServerUrl = process.env.GITEA_SERVER_URL;
+      
+      if (githubServerUrl || process.env.GITHUB_ACTOR) {
+        // GitHub format: actor@users.noreply.{hostname}
+        const hostname = githubServerUrl
+          ? githubServerUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')
+          : 'github.com';
+        finalEmail = `${actor}@users.noreply.${hostname}`;
+      } else if (giteaServerUrl || process.env.GITEA_ACTOR) {
+        // Gitea format: actor@noreply.{hostname}
+        const hostname = giteaServerUrl
+          ? giteaServerUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')
+          : 'gitea.com';
+        finalEmail = `${actor}@noreply.${hostname}`;
+      } else {
+        // Default format for other platforms
+        const serverUrl = process.env.CI_SERVER_URL || 'github.com';
+        const hostname = serverUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
+        finalEmail = `${actor}@noreply.${hostname}`;
+      }
     } else {
       finalEmail = 'actions@github.com';
     }
@@ -169,8 +184,11 @@ export async function createTag(
 
   logger.info(`Creating tag: ${tagName} at ${sha}`);
 
-  // Ensure git user config is set for annotated tags
-  if (message) {
+  // Determine if this will be an annotated tag
+  const isAnnotatedTag = !!message || gpgSign;
+
+  // Ensure git user config is set for annotated tags (required by Git)
+  if (isAnnotatedTag) {
     await ensureGitUserConfig(logger, gitUserName, gitUserEmail);
   }
 
@@ -203,8 +221,9 @@ export async function createTag(
     if (gpgKeyId) {
       tagArgs.push('-u', gpgKeyId);
     }
-  } else {
-    tagArgs.push('-a'); // Annotated tag (if message provided)
+  } else if (message) {
+    // Only add -a flag if message is provided (annotated tag)
+    tagArgs.push('-a');
   }
 
   tagArgs.push(tagName);

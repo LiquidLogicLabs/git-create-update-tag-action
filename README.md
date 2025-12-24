@@ -223,7 +223,10 @@ For annotated tags, Git requires `user.name` and `user.email` to be configured. 
 
 - **Auto-detection**: Automatically detects from environment variables:
   - `GITHUB_ACTOR` or `GITEA_ACTOR` for user name
-  - Constructs email from actor and server URL (e.g., `actor@noreply.git.ravenwolf.org`)
+  - Constructs email from actor and server URL:
+    - **GitHub**: `actor@users.noreply.github.com` (or `actor@users.noreply.{hostname}` for GitHub Enterprise)
+    - **Gitea**: `actor@noreply.{hostname}` (e.g., `actor@noreply.git.ravenwolf.org`)
+    - **Other platforms**: `actor@noreply.{hostname}`
 - **Manual override**: You can provide `git_user_name` and `git_user_email` inputs to override auto-detection
 - **Local config fallback**: If git user is already configured locally, it uses those values
 - **Default fallback**: If nothing is detected, uses "GitHub Actions" and "actions@github.com"

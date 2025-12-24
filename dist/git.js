@@ -46,7 +46,7 @@ const exec = __importStar(require("@actions/exec"));
 /**
  * Check if we're in a Git repository
  */
-async function isGitRepository(logger) {
+async function isGitRepository(_logger) {
     try {
         const exitCode = await exec.exec('git', ['rev-parse', '--git-dir'], {
             silent: true,
@@ -61,7 +61,7 @@ async function isGitRepository(logger) {
 /**
  * Check if a tag exists locally
  */
-async function tagExistsLocally(tagName, logger) {
+async function tagExistsLocally(tagName, _logger) {
     try {
         const exitCode = await exec.exec('git', ['rev-parse', '--verify', `refs/tags/${tagName}`], {
             silent: true,
@@ -76,7 +76,7 @@ async function tagExistsLocally(tagName, logger) {
 /**
  * Get current HEAD SHA
  */
-async function getHeadSha(logger) {
+async function getHeadSha(_logger) {
     const output = [];
     await exec.exec('git', ['rev-parse', 'HEAD'], {
         silent: true,
@@ -269,7 +269,7 @@ async function createTag(options, logger) {
 /**
  * Get the SHA that a tag points to
  */
-async function getTagSha(tagName, logger) {
+async function getTagSha(tagName, _logger) {
     const output = [];
     await exec.exec('git', ['rev-parse', `refs/tags/${tagName}`], {
         silent: true,
@@ -309,7 +309,7 @@ async function pushTag(tagName, remote, token, force, logger) {
 /**
  * Get remote URL
  */
-async function getRemoteUrl(remote, logger) {
+async function getRemoteUrl(remote, _logger) {
     const output = [];
     try {
         await exec.exec('git', ['config', '--get', `remote.${remote}.url`], {

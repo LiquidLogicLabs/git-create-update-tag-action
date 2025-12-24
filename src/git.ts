@@ -1,12 +1,11 @@
 import * as exec from '@actions/exec';
-import * as io from '@actions/io';
 import { TagOptions, TagResult } from './types';
 import { Logger } from './logger';
 
 /**
  * Check if we're in a Git repository
  */
-export async function isGitRepository(logger: Logger): Promise<boolean> {
+export async function isGitRepository(_logger: Logger): Promise<boolean> {
   try {
     const exitCode = await exec.exec('git', ['rev-parse', '--git-dir'], {
       silent: true,
@@ -23,7 +22,7 @@ export async function isGitRepository(logger: Logger): Promise<boolean> {
  */
 export async function tagExistsLocally(
   tagName: string,
-  logger: Logger
+  _logger: Logger
 ): Promise<boolean> {
   try {
     const exitCode = await exec.exec(
@@ -43,7 +42,7 @@ export async function tagExistsLocally(
 /**
  * Get current HEAD SHA
  */
-export async function getHeadSha(logger: Logger): Promise<string> {
+export async function getHeadSha(_logger: Logger): Promise<string> {
   const output: string[] = [];
   await exec.exec('git', ['rev-parse', 'HEAD'], {
     silent: true,
@@ -263,7 +262,7 @@ export async function createTag(
 /**
  * Get the SHA that a tag points to
  */
-export async function getTagSha(tagName: string, logger: Logger): Promise<string> {
+export async function getTagSha(tagName: string, _logger: Logger): Promise<string> {
   const output: string[] = [];
   await exec.exec('git', ['rev-parse', `refs/tags/${tagName}`], {
     silent: true,
@@ -314,7 +313,7 @@ export async function pushTag(
 /**
  * Get remote URL
  */
-async function getRemoteUrl(remote: string, logger: Logger): Promise<string | undefined> {
+async function getRemoteUrl(remote: string, _logger: Logger): Promise<string | undefined> {
   const output: string[] = [];
   try {
     await exec.exec('git', ['config', '--get', `remote.${remote}.url`], {

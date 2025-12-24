@@ -3,15 +3,15 @@ import { Logger } from './logger';
 /**
  * Check if we're in a Git repository
  */
-export declare function isGitRepository(logger: Logger): Promise<boolean>;
+export declare function isGitRepository(_logger: Logger): Promise<boolean>;
 /**
  * Check if a tag exists locally
  */
-export declare function tagExistsLocally(tagName: string, logger: Logger): Promise<boolean>;
+export declare function tagExistsLocally(tagName: string, _logger: Logger): Promise<boolean>;
 /**
  * Get current HEAD SHA
  */
-export declare function getHeadSha(logger: Logger): Promise<string>;
+export declare function getHeadSha(_logger: Logger): Promise<string>;
 /**
  * Ensure git user.name and user.email are configured
  * Returns true if configuration was set, false if already configured
@@ -24,7 +24,7 @@ export declare function createTag(options: TagOptions, logger: Logger): Promise<
 /**
  * Get the SHA that a tag points to
  */
-export declare function getTagSha(tagName: string, logger: Logger): Promise<string>;
+export declare function getTagSha(tagName: string, _logger: Logger): Promise<string>;
 /**
  * Push tag to remote
  */

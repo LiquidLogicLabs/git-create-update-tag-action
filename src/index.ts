@@ -130,7 +130,25 @@ async function run(): Promise<void> {
             baseUrl = 'https://api.github.com';
             break;
           case 'gitea':
-            baseUrl = 'https://gitea.com/api/v1';
+            // For Gitea, try to detect from repository URL or use default
+            if (repoInfo.url) {
+              try {
+                const url = new URL(repoInfo.url);
+                baseUrl = `${url.protocol}//${url.hostname}${url.port ? `:${url.port}` : ''}/api/v1`;
+                logger.debug(`Detected Gitea base URL from repository URL: ${baseUrl}`);
+              } catch {
+                baseUrl = 'https://gitea.com/api/v1';
+              }
+            } else {
+              // Try to get from Gitea server URL environment variable
+              const giteaServerUrl = process.env.GITEA_SERVER_URL || process.env.GITEA_API_URL;
+              if (giteaServerUrl) {
+                baseUrl = `${giteaServerUrl.replace(/\/$/, '')}/api/v1`;
+                logger.debug(`Using Gitea base URL from environment: ${baseUrl}`);
+              } else {
+                baseUrl = 'https://gitea.com/api/v1';
+              }
+            }
             break;
           case 'bitbucket':
             baseUrl = 'https://api.bitbucket.org/2.0';

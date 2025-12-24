@@ -109,7 +109,7 @@ export async function createTag(
   // Create tag
   if (message) {
     logger.logGitCommand('git tag', tagArgs);
-    await exec.exec('git', tagArgs, {
+    await exec.exec('git', ['tag', ...tagArgs], {
       input: Buffer.from(message),
       silent: !options.verbose
     });

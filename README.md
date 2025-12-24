@@ -139,6 +139,18 @@ A GitHub Action that creates or updates Git tags on local or remote repositories
     push_tag: false
 ```
 
+### Custom Git User Configuration
+
+```yaml
+- name: Create tag with custom git user
+  uses: LiquidLogicLabs/git-create-update-tag-action@v1
+  with:
+    tag_name: 'v1.0.0'
+    tag_message: 'Release version 1.0.0'
+    git_user_name: 'My Name'
+    git_user_email: 'myemail@example.com'
+```
+
 ### Verbose Logging
 
 ```yaml
@@ -168,6 +180,8 @@ A GitHub Action that creates or updates Git tags on local or remote repositories
 | `force` | Force update even if tag exists (default: false) | No | `false` |
 | `verbose` | Enable verbose/debug logging (default: false) | No | `false` |
 | `push_tag` | Push the tag to the remote repository after creating/updating (default: true). Only applies when using local Git CLI. | No | `true` |
+| `git_user_name` | Git user name for annotated tags. Auto-detected from GITHUB_ACTOR/GITEA_ACTOR if not provided. Falls back to local git config. | No | Auto-detected |
+| `git_user_email` | Git user email for annotated tags. Auto-detected from GITHUB_ACTOR/GITEA_ACTOR if not provided. Falls back to local git config. | No | Auto-detected |
 
 ## Outputs
 

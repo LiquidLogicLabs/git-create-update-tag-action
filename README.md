@@ -217,6 +217,19 @@ The action intelligently chooses between local Git CLI operations and platform A
 - **Annotated Tags**: Created when `tag_message` is provided. Include metadata and can be GPG signed.
 - **Lightweight Tags**: Created when `tag_message` is omitted. Simple pointer to a commit.
 
+## Git User Configuration
+
+For annotated tags, Git requires `user.name` and `user.email` to be configured. The action automatically handles this:
+
+- **Auto-detection**: Automatically detects from environment variables:
+  - `GITHUB_ACTOR` or `GITEA_ACTOR` for user name
+  - Constructs email from actor and server URL (e.g., `actor@noreply.git.ravenwolf.org`)
+- **Manual override**: You can provide `git_user_name` and `git_user_email` inputs to override auto-detection
+- **Local config fallback**: If git user is already configured locally, it uses those values
+- **Default fallback**: If nothing is detected, uses "GitHub Actions" and "actions@github.com"
+
+The git config is set locally (repository-scoped) only when needed, so it won't affect your global git configuration.
+
 ## GPG Signing
 
 GPG signing is only supported for annotated tags (when `tag_message` is provided). You can specify a specific GPG key ID using `gpg_key_id`, or let Git use the default signing key.

@@ -140,6 +140,18 @@ async function getLocalRepositoryInfo(logger) {
                 platform: 'github'
             };
         }
+        // Get current repository info from Gitea context if available
+        const giteaRepo = process.env.GITEA_REPOSITORY;
+        if (giteaRepo) {
+            const [owner, repo] = giteaRepo.split('/');
+            logger.debug(`Using Gitea context: ${owner}/${repo}`);
+            return {
+                owner,
+                repo,
+                url: remoteUrl || undefined,
+                platform: 'gitea'
+            };
+        }
         // Try to parse remote URL
         if (remoteUrl) {
             const parsed = parseRepository(remoteUrl, logger);
@@ -174,6 +186,11 @@ function detectPlatform(repoType, repositoryInfo, logger) {
         logger.debug('Detected GitHub from GITHUB_REPOSITORY context');
         return 'github';
     }
+    // Try to detect from Gitea context
+    if (process.env.GITEA_REPOSITORY) {
+        logger.debug('Detected Gitea from GITEA_REPOSITORY context');
+        return 'gitea';
+    }
     // Fallback to generic
     logger.debug('Could not detect platform, using generic');
     return 'generic';
@@ -191,7 +208,7 @@ async function getRepositoryInfo(repository, repoType, logger) {
     if (!repoInfo) {
         repoInfo = await getLocalRepositoryInfo(logger);
     }
-    // If still no info, try GitHub context
+    // If still no info, try GitHub or Gitea context
     if (!repoInfo) {
         const githubRepo = process.env.GITHUB_REPOSITORY;
         if (githubRepo) {
@@ -202,6 +219,18 @@ async function getRepositoryInfo(repository, repoType, logger) {
                 platform: 'github'
             };
             logger.debug(`Using GitHub context: ${owner}/${repo}`);
+        }
+        else {
+            const giteaRepo = process.env.GITEA_REPOSITORY;
+            if (giteaRepo) {
+                const [owner, repo] = giteaRepo.split('/');
+                repoInfo = {
+                    owner,
+                    repo,
+                    platform: 'gitea'
+                };
+                logger.debug(`Using Gitea context: ${owner}/${repo}`);
+            }
         }
     }
     // If we still don't have info, throw error

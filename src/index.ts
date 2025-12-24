@@ -90,7 +90,9 @@ async function run(): Promise<void> {
       gpgSign: inputs.gpgSign,
       gpgKeyId: inputs.gpgKeyId,
       force: inputs.force,
-      verbose: inputs.verbose
+      verbose: inputs.verbose,
+      gitUserName: inputs.gitUserName,
+      gitUserEmail: inputs.gitUserEmail
     };
 
     let result;

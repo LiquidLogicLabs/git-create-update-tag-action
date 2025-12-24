@@ -57,15 +57,122 @@ export async function getHeadSha(logger: Logger): Promise<string> {
 }
 
 /**
+ * Ensure git user.name and user.email are configured
+ * Returns true if configuration was set, false if already configured
+ */
+export async function ensureGitUserConfig(
+  logger: Logger,
+  userName?: string,
+  userEmail?: string
+): Promise<boolean> {
+  // Check if git config is already set
+  let nameSet = false;
+  let emailSet = false;
+
+  try {
+    const nameOutput: string[] = [];
+    await exec.exec('git', ['config', '--get', 'user.name'], {
+      silent: true,
+      listeners: {
+        stdout: (data: Buffer) => {
+          nameOutput.push(data.toString());
+        }
+      },
+      ignoreReturnCode: true
+    });
+    nameSet = nameOutput.join('').trim().length > 0;
+  } catch {
+    nameSet = false;
+  }
+
+  try {
+    const emailOutput: string[] = [];
+    await exec.exec('git', ['config', '--get', 'user.email'], {
+      silent: true,
+      listeners: {
+        stdout: (data: Buffer) => {
+          emailOutput.push(data.toString());
+        }
+      },
+      ignoreReturnCode: true
+    });
+    emailSet = emailOutput.join('').trim().length > 0;
+  } catch {
+    emailSet = false;
+  }
+
+  // If both are already set, no need to configure
+  if (nameSet && emailSet) {
+    logger.debug('Git user.name and user.email already configured');
+    return false;
+  }
+
+  // Determine values to use
+  let finalName = userName;
+  let finalEmail = userEmail;
+
+  // Auto-detect from environment variables if not provided
+  if (!finalName) {
+    finalName =
+      process.env.GITHUB_ACTOR ||
+      process.env.GITEA_ACTOR ||
+      process.env.CI_COMMIT_AUTHOR ||
+      'GitHub Actions';
+  }
+
+  if (!finalEmail) {
+    // Try to construct email from actor
+    const actor =
+      process.env.GITHUB_ACTOR ||
+      process.env.GITEA_ACTOR ||
+      process.env.CI_COMMIT_AUTHOR;
+    if (actor) {
+      // Use noreply email format
+      const serverUrl =
+        process.env.GITHUB_SERVER_URL ||
+        process.env.GITEA_SERVER_URL ||
+        'github.com';
+      const hostname = serverUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
+      finalEmail = `${actor}@noreply.${hostname}`;
+    } else {
+      finalEmail = 'actions@github.com';
+    }
+  }
+
+  // Set git config (local to repository)
+  if (!nameSet && finalName) {
+    logger.debug(`Setting git user.name to: ${finalName}`);
+    await exec.exec('git', ['config', '--local', 'user.name', finalName], {
+      silent: true
+    });
+  }
+
+  if (!emailSet && finalEmail) {
+    logger.debug(`Setting git user.email to: ${finalEmail}`);
+    await exec.exec('git', ['config', '--local', 'user.email', finalEmail], {
+      silent: true
+    });
+  }
+
+  return true;
+}
+
+/**
  * Create a tag using Git CLI
  */
 export async function createTag(
   options: TagOptions,
   logger: Logger
 ): Promise<TagResult> {
-  const { tagName, sha, message, gpgSign, gpgKeyId } = options;
+  const { tagName, sha, message, gpgSign, gpgKeyId, gitUserName, gitUserEmail } =
+    options;
 
   logger.info(`Creating tag: ${tagName} at ${sha}`);
+
+  // Ensure git user config is set for annotated tags
+  if (message) {
+    await ensureGitUserConfig(logger, gitUserName, gitUserEmail);
+  }
 
   // Check if tag already exists
   const exists = await tagExistsLocally(tagName, logger);

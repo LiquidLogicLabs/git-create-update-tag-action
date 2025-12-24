@@ -88,16 +88,24 @@ describe('createTag', () => {
   });
 
   it('should create annotated tag with message', async () => {
-    (exec.exec as jest.Mock)
-      .mockResolvedValueOnce(1) // tagExistsLocally returns false
-      .mockResolvedValueOnce(0) // git tag succeeds
-      .mockResolvedValueOnce(0); // getTagSha succeeds
-
     (exec.exec as jest.Mock).mockImplementation((command, args, options) => {
       if (command === 'git' && args[0] === 'rev-parse') {
+        if (args[1] === '--verify' && args[2]?.includes('refs/tags/')) {
+          // tagExistsLocally - return 1 (not found)
+          return Promise.resolve(1);
+        }
+        // getTagSha or other rev-parse
         if (options?.listeners?.stdout) {
           options.listeners.stdout(Buffer.from('tag-sha-123\n'));
         }
+        return Promise.resolve(0);
+      }
+      if (command === 'git' && args[0] === 'config' && args[1] === '--get') {
+        // Return 1 (not found) for user.name and user.email checks
+        return Promise.resolve(1);
+      }
+      if (command === 'git' && args[0] === 'config' && args[1] === '--local') {
+        // Config set succeeds
         return Promise.resolve(0);
       }
       if (command === 'git' && args[0] === 'tag') {
@@ -132,13 +140,20 @@ describe('createTag', () => {
   });
 
   it('should create lightweight tag without message', async () => {
-    (exec.exec as jest.Mock)
-      .mockResolvedValueOnce(1) // tagExistsLocally returns false
-      .mockResolvedValueOnce(0) // git tag succeeds
-      .mockResolvedValueOnce(0); // getTagSha succeeds
-
     (exec.exec as jest.Mock).mockImplementation((command, args, options) => {
       if (command === 'git' && args[0] === 'rev-parse') {
+        if (args[1] === '--verify' && args[2]?.includes('refs/tags/')) {
+          // tagExistsLocally - return 1 (not found)
+          return Promise.resolve(1);
+        }
+        if (args[1] === '--verify' || args.length === 2) {
+          // getTagSha
+          if (options?.listeners?.stdout) {
+            options.listeners.stdout(Buffer.from('tag-sha-123\n'));
+          }
+          return Promise.resolve(0);
+        }
+        // getHeadSha or other
         if (options?.listeners?.stdout) {
           options.listeners.stdout(Buffer.from('tag-sha-123\n'));
         }
@@ -187,14 +202,34 @@ describe('createTag', () => {
     (exec.exec as jest.Mock)
       .mockResolvedValueOnce(0) // tagExistsLocally returns true
       .mockResolvedValueOnce(0) // git tag -d succeeds
+      .mockResolvedValueOnce(1) // git config --get user.name returns false (not set)
+      .mockResolvedValueOnce(1) // git config --get user.email returns false (not set)
+      .mockResolvedValueOnce(0) // git config --local user.name succeeds
+      .mockResolvedValueOnce(0) // git config --local user.email succeeds
       .mockResolvedValueOnce(0) // git tag succeeds
       .mockResolvedValueOnce(0); // getTagSha succeeds
 
     (exec.exec as jest.Mock).mockImplementation((command, args, options) => {
       if (command === 'git' && args[0] === 'rev-parse') {
+        if (args[1] === '--verify') {
+          // tagExistsLocally or getTagSha
+          if (options?.listeners?.stdout) {
+            options.listeners.stdout(Buffer.from('tag-sha-123\n'));
+          }
+          return Promise.resolve(0);
+        }
+        // getHeadSha or other rev-parse
         if (options?.listeners?.stdout) {
           options.listeners.stdout(Buffer.from('tag-sha-123\n'));
         }
+        return Promise.resolve(0);
+      }
+      if (command === 'git' && args[0] === 'config' && args[1] === '--get') {
+        // Return 1 (not found) for user.name and user.email checks
+        return Promise.resolve(1);
+      }
+      if (command === 'git' && args[0] === 'config' && args[1] === '--local') {
+        // Config set succeeds
         return Promise.resolve(0);
       }
       return Promise.resolve(0);
@@ -216,16 +251,24 @@ describe('createTag', () => {
   });
 
   it('should create GPG signed tag', async () => {
-    (exec.exec as jest.Mock)
-      .mockResolvedValueOnce(1) // tagExistsLocally returns false
-      .mockResolvedValueOnce(0) // git tag -s succeeds
-      .mockResolvedValueOnce(0); // getTagSha succeeds
-
     (exec.exec as jest.Mock).mockImplementation((command, args, options) => {
       if (command === 'git' && args[0] === 'rev-parse') {
+        if (args[1] === '--verify' && args[2]?.includes('refs/tags/')) {
+          // tagExistsLocally - return 1 (not found)
+          return Promise.resolve(1);
+        }
+        // getTagSha or other rev-parse
         if (options?.listeners?.stdout) {
           options.listeners.stdout(Buffer.from('tag-sha-123\n'));
         }
+        return Promise.resolve(0);
+      }
+      if (command === 'git' && args[0] === 'config' && args[1] === '--get') {
+        // Return 1 (not found) for user.name and user.email checks
+        return Promise.resolve(1);
+      }
+      if (command === 'git' && args[0] === 'config' && args[1] === '--local') {
+        // Config set succeeds
         return Promise.resolve(0);
       }
       if (command === 'git' && args[0] === 'tag') {

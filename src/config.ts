@@ -64,6 +64,8 @@ export function getInputs(): ActionInputs {
   const force = getBooleanInput('force', false);
   const verbose = getBooleanInput('verbose', false);
   const pushTag = getBooleanInput('push_tag', true);
+  const gitUserName = getOptionalInput('git_user_name');
+  const gitUserEmail = getOptionalInput('git_user_email');
 
   // Validate GPG signing requirements
   if (gpgSign && !tagMessage) {
@@ -98,7 +100,9 @@ export function getInputs(): ActionInputs {
     ignoreCertErrors,
     force,
     verbose,
-    pushTag
+    pushTag,
+    gitUserName,
+    gitUserEmail
   };
 }
 

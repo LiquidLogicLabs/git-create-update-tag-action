@@ -86,12 +86,14 @@ export function getInputs(): ActionInputs {
     }
   }
 
+  const normalizedTagMessage = tagMessage?.trim() || undefined;
+
   return {
     tagName: tagName.trim(),
-    tagMessage: tagMessage?.trim() || undefined, // Normalize empty strings to undefined
+    tagMessage: normalizedTagMessage, // Normalize empty strings to undefined
     tagSha: tagSha?.trim(),
     repository: repository?.trim(),
-    token: token || process.env.GITHUB_TOKEN,
+    token: token, // Don't set default here - will be resolved based on platform
     updateExisting,
     gpgSign,
     gpgKeyId: gpgKeyId?.trim(),
@@ -104,5 +106,34 @@ export function getInputs(): ActionInputs {
     gitUserName,
     gitUserEmail
   };
+}
+
+/**
+ * Resolve token from environment variables based on platform
+ * Falls back to platform-specific token environment variables if token is not provided
+ */
+export function resolveToken(token: string | undefined, platform: RepoType): string | undefined {
+  // If token is explicitly provided, use it
+  if (token) {
+    return token;
+  }
+
+  // Otherwise, try platform-specific environment variables
+  switch (platform) {
+    case 'github':
+      return process.env.GITHUB_TOKEN;
+    case 'gitea':
+      return process.env.GITEA_TOKEN || process.env.GITHUB_TOKEN; // Gitea Actions also provides GITHUB_TOKEN
+    case 'bitbucket':
+      return process.env.BITBUCKET_TOKEN;
+    case 'generic':
+    default:
+      // For generic, try common token environment variables
+      return (
+        process.env.GITHUB_TOKEN ||
+        process.env.GITEA_TOKEN ||
+        process.env.BITBUCKET_TOKEN
+      );
+  }
 }
 

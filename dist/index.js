@@ -25683,6 +25683,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.getInputs = getInputs;
+exports.resolveToken = resolveToken;
 const core = __importStar(__nccwpck_require__(7484));
 /**
  * Parse boolean input with default value
@@ -25763,7 +25764,7 @@ function getInputs() {
         tagMessage: normalizedTagMessage, // Normalize empty strings to undefined
         tagSha: tagSha?.trim(),
         repository: repository?.trim(),
-        token: token || process.env.GITHUB_TOKEN,
+        token: token, // Don't set default here - will be resolved based on platform
         updateExisting,
         gpgSign,
         gpgKeyId: gpgKeyId?.trim(),
@@ -25776,6 +25777,31 @@ function getInputs() {
         gitUserName,
         gitUserEmail
     };
+}
+/**
+ * Resolve token from environment variables based on platform
+ * Falls back to platform-specific token environment variables if token is not provided
+ */
+function resolveToken(token, platform) {
+    // If token is explicitly provided, use it
+    if (token) {
+        return token;
+    }
+    // Otherwise, try platform-specific environment variables
+    switch (platform) {
+        case 'github':
+            return process.env.GITHUB_TOKEN;
+        case 'gitea':
+            return process.env.GITEA_TOKEN || process.env.GITHUB_TOKEN; // Gitea Actions also provides GITHUB_TOKEN
+        case 'bitbucket':
+            return process.env.BITBUCKET_TOKEN;
+        case 'generic':
+        default:
+            // For generic, try common token environment variables
+            return (process.env.GITHUB_TOKEN ||
+                process.env.GITEA_TOKEN ||
+                process.env.BITBUCKET_TOKEN);
+    }
 }
 
 
@@ -26278,7 +26304,7 @@ async function run() {
                 logger.debug(`tag_message: length=${msgLength}, preview="${msgPreview.replace(/\n/g, '\\n')}"`);
             }
             logger.debug(`repository: ${inputs.repository || 'undefined (will use current repo)'}`);
-            logger.debug(`token: ${inputs.token ? '*** (set)' : 'undefined'}`);
+            logger.debug(`token: ${inputs.token ? '*** (explicitly provided)' : 'undefined (will resolve from env based on platform)'}`);
             logger.debug(`repo_type: ${inputs.repoType}`);
             logger.debug(`base_url: ${inputs.baseUrl || 'undefined (will auto-detect)'}`);
             logger.debug(`update_existing: ${inputs.updateExisting}`);
@@ -26293,6 +26319,8 @@ async function run() {
         }
         // Get repository information
         const repoInfo = await (0, platform_detector_1.getRepositoryInfo)(inputs.repository, inputs.repoType, logger);
+        // Resolve token based on detected platform
+        const resolvedToken = (0, config_1.resolveToken)(inputs.token, repoInfo.platform);
         // Determine if we should use local Git or platform API
         const useLocalGit = await (0, git_1.isGitRepository)(logger);
         const usePlatformAPI = !useLocalGit || repoInfo.platform !== 'generic';
@@ -26304,6 +26332,7 @@ async function run() {
             logger.debug(`url: ${repoInfo.url || 'undefined'}`);
             logger.debug(`useLocalGit: ${useLocalGit}`);
             logger.debug(`usePlatformAPI: ${usePlatformAPI}`);
+            logger.debug(`token: ${resolvedToken ? '*** (resolved from env)' : 'undefined'}`);
         }
         else {
             logger.debug(`Use local Git: ${useLocalGit}, Use platform API: ${usePlatformAPI}`);
@@ -26351,7 +26380,7 @@ async function run() {
             if (inputs.pushTag && repoInfo.url) {
                 try {
                     logger.info(`Pushing tag ${inputs.tagName} to remote`);
-                    await (0, git_1.pushTag)(inputs.tagName, 'origin', inputs.token, inputs.force, logger);
+                    await (0, git_1.pushTag)(inputs.tagName, 'origin', resolvedToken, inputs.force, logger);
                     logger.info(`Tag ${inputs.tagName} pushed successfully`);
                 }
                 catch (error) {
@@ -26405,7 +26434,7 @@ async function run() {
                 }
             }
             const platformAPI = createPlatformAPI(repoInfo.platform, repoInfo, {
-                token: inputs.token,
+                token: resolvedToken,
                 baseUrl,
                 ignoreCertErrors: inputs.ignoreCertErrors,
                 verbose: inputs.verbose,

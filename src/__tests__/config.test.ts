@@ -1,4 +1,4 @@
-import { getInputs } from '../config';
+import { getInputs, resolveToken } from '../config';
 import * as core from '@actions/core';
 
 // Mock @actions/core
@@ -134,7 +134,7 @@ describe('getInputs', () => {
     expect(inputs.baseUrl).toBe('https://example.com');
   });
 
-  it('should use GITHUB_TOKEN from environment if token not provided', () => {
+  it('should not set token from environment in getInputs (token resolution happens later)', () => {
     process.env.GITHUB_TOKEN = 'env-token';
     (core.getInput as jest.Mock).mockImplementation((name: string) => {
       if (name === 'tag_name') return 'v1.0.0';
@@ -142,7 +142,7 @@ describe('getInputs', () => {
     });
 
     const inputs = getInputs();
-    expect(inputs.token).toBe('env-token');
+    expect(inputs.token).toBeUndefined();
   });
 
   it('should parse repo_type correctly', () => {
@@ -218,6 +218,85 @@ describe('getInputs', () => {
 
     const inputs = getInputs();
     expect(inputs.tagMessage).toBeUndefined();
+  });
+});
+
+describe('resolveToken', () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+    delete process.env.GITHUB_TOKEN;
+    delete process.env.GITEA_TOKEN;
+    delete process.env.BITBUCKET_TOKEN;
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it('should return explicitly provided token', () => {
+    expect(resolveToken('explicit-token', 'github')).toBe('explicit-token');
+    expect(resolveToken('explicit-token', 'gitea')).toBe('explicit-token');
+    expect(resolveToken('explicit-token', 'bitbucket')).toBe('explicit-token');
+    expect(resolveToken('explicit-token', 'generic')).toBe('explicit-token');
+  });
+
+  it('should use GITHUB_TOKEN for github platform', () => {
+    process.env.GITHUB_TOKEN = 'github-token';
+    expect(resolveToken(undefined, 'github')).toBe('github-token');
+  });
+
+  it('should use GITEA_TOKEN for gitea platform', () => {
+    process.env.GITEA_TOKEN = 'gitea-token';
+    expect(resolveToken(undefined, 'gitea')).toBe('gitea-token');
+  });
+
+  it('should fallback to GITHUB_TOKEN for gitea if GITEA_TOKEN not set', () => {
+    process.env.GITHUB_TOKEN = 'github-token';
+    expect(resolveToken(undefined, 'gitea')).toBe('github-token');
+  });
+
+  it('should prefer GITEA_TOKEN over GITHUB_TOKEN for gitea platform', () => {
+    process.env.GITEA_TOKEN = 'gitea-token';
+    process.env.GITHUB_TOKEN = 'github-token';
+    expect(resolveToken(undefined, 'gitea')).toBe('gitea-token');
+  });
+
+  it('should use BITBUCKET_TOKEN for bitbucket platform', () => {
+    process.env.BITBUCKET_TOKEN = 'bitbucket-token';
+    expect(resolveToken(undefined, 'bitbucket')).toBe('bitbucket-token');
+  });
+
+  it('should try common tokens for generic platform', () => {
+    process.env.GITHUB_TOKEN = 'github-token';
+    expect(resolveToken(undefined, 'generic')).toBe('github-token');
+  });
+
+  it('should check tokens in order for generic platform (GITHUB_TOKEN first)', () => {
+    process.env.GITHUB_TOKEN = 'github-token';
+    process.env.GITEA_TOKEN = 'gitea-token';
+    process.env.BITBUCKET_TOKEN = 'bitbucket-token';
+    // For generic, checks in order: GITHUB_TOKEN, GITEA_TOKEN, BITBUCKET_TOKEN
+    expect(resolveToken(undefined, 'generic')).toBe('github-token');
+  });
+
+  it('should fallback to GITEA_TOKEN for generic if GITHUB_TOKEN not set', () => {
+    process.env.GITEA_TOKEN = 'gitea-token';
+    process.env.BITBUCKET_TOKEN = 'bitbucket-token';
+    expect(resolveToken(undefined, 'generic')).toBe('gitea-token');
+  });
+
+  it('should fallback to BITBUCKET_TOKEN for generic if others not set', () => {
+    process.env.BITBUCKET_TOKEN = 'bitbucket-token';
+    expect(resolveToken(undefined, 'generic')).toBe('bitbucket-token');
+  });
+
+  it('should return undefined if no token env vars are set', () => {
+    expect(resolveToken(undefined, 'github')).toBeUndefined();
+    expect(resolveToken(undefined, 'gitea')).toBeUndefined();
+    expect(resolveToken(undefined, 'bitbucket')).toBeUndefined();
+    expect(resolveToken(undefined, 'generic')).toBeUndefined();
   });
 });
 

@@ -1,5 +1,5 @@
 import * as core from '@actions/core';
-import { getInputs } from './config';
+import { getInputs, resolveToken } from './config';
 import { Logger } from './logger';
 import { getRepositoryInfo } from './platform-detector';
 import { isGitRepository, getHeadSha, createTag, pushTag } from './git';
@@ -72,7 +72,7 @@ async function run(): Promise<void> {
         logger.debug(`tag_message: length=${msgLength}, preview="${msgPreview.replace(/\n/g, '\\n')}"`);
       }
       logger.debug(`repository: ${inputs.repository || 'undefined (will use current repo)'}`);
-      logger.debug(`token: ${inputs.token ? '*** (set)' : 'undefined'}`);
+      logger.debug(`token: ${inputs.token ? '*** (explicitly provided)' : 'undefined (will resolve from env based on platform)'}`);
       logger.debug(`repo_type: ${inputs.repoType}`);
       logger.debug(`base_url: ${inputs.baseUrl || 'undefined (will auto-detect)'}`);
       logger.debug(`update_existing: ${inputs.updateExisting}`);
@@ -93,6 +93,9 @@ async function run(): Promise<void> {
       logger
     );
 
+    // Resolve token based on detected platform
+    const resolvedToken = resolveToken(inputs.token, repoInfo.platform);
+
     // Determine if we should use local Git or platform API
     const useLocalGit = await isGitRepository(logger);
     const usePlatformAPI = !useLocalGit || repoInfo.platform !== 'generic';
@@ -105,6 +108,7 @@ async function run(): Promise<void> {
       logger.debug(`url: ${repoInfo.url || 'undefined'}`);
       logger.debug(`useLocalGit: ${useLocalGit}`);
       logger.debug(`usePlatformAPI: ${usePlatformAPI}`);
+      logger.debug(`token: ${resolvedToken ? '*** (resolved from env)' : 'undefined'}`);
     } else {
       logger.debug(`Use local Git: ${useLocalGit}, Use platform API: ${usePlatformAPI}`);
     }
@@ -161,7 +165,7 @@ async function run(): Promise<void> {
           await pushTag(
             inputs.tagName,
             'origin',
-            inputs.token,
+            resolvedToken,
             inputs.force,
             logger
           );
@@ -219,7 +223,7 @@ async function run(): Promise<void> {
         repoInfo.platform,
         repoInfo,
         {
-          token: inputs.token,
+          token: resolvedToken,
           baseUrl,
           ignoreCertErrors: inputs.ignoreCertErrors,
           verbose: inputs.verbose,

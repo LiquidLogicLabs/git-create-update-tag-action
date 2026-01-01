@@ -197,5 +197,27 @@ describe('getInputs', () => {
     expect(inputs.tagName).toBe('v1.0.0');
     expect(inputs.tagMessage).toBe('Release');
   });
+
+  it('should normalize empty tag_message to undefined', () => {
+    (core.getInput as jest.Mock).mockImplementation((name: string) => {
+      if (name === 'tag_name') return 'v1.0.0';
+      if (name === 'tag_message') return '';
+      return '';
+    });
+
+    const inputs = getInputs();
+    expect(inputs.tagMessage).toBeUndefined();
+  });
+
+  it('should normalize whitespace-only tag_message to undefined', () => {
+    (core.getInput as jest.Mock).mockImplementation((name: string) => {
+      if (name === 'tag_name') return 'v1.0.0';
+      if (name === 'tag_message') return '   \n\t  ';
+      return '';
+    });
+
+    const inputs = getInputs();
+    expect(inputs.tagMessage).toBeUndefined();
+  });
 });
 

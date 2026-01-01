@@ -179,6 +179,122 @@ describe('createTag', () => {
     expect(result.created).toBe(true);
   });
 
+  it('should create lightweight tag when message is empty string', async () => {
+    (exec.exec as jest.Mock).mockImplementation((command, args, options) => {
+      if (command === 'git' && args[0] === 'rev-parse') {
+        if (args[1] === '--verify' && args[2]?.includes('refs/tags/')) {
+          // tagExistsLocally - return 1 (not found)
+          return Promise.resolve(1);
+        }
+        if (options?.listeners?.stdout) {
+          options.listeners.stdout(Buffer.from('tag-sha-123\n'));
+        }
+        return Promise.resolve(0);
+      }
+      if (command === 'git' && args[0] === 'tag') {
+        // Verify -a flag is NOT present (lightweight tag)
+        expect(args).not.toContain('-a');
+        return Promise.resolve(0);
+      }
+      return Promise.resolve(1);
+    });
+
+    const result = await createTag(
+      {
+        tagName: 'v1.0.0',
+        sha: 'commit-sha',
+        message: '',
+        gpgSign: false,
+        force: false,
+        verbose: false
+      },
+      mockLogger
+    );
+
+    expect(result.created).toBe(true);
+  });
+
+  it('should create lightweight tag when message is whitespace-only', async () => {
+    (exec.exec as jest.Mock).mockImplementation((command, args, options) => {
+      if (command === 'git' && args[0] === 'rev-parse') {
+        if (args[1] === '--verify' && args[2]?.includes('refs/tags/')) {
+          // tagExistsLocally - return 1 (not found)
+          return Promise.resolve(1);
+        }
+        if (options?.listeners?.stdout) {
+          options.listeners.stdout(Buffer.from('tag-sha-123\n'));
+        }
+        return Promise.resolve(0);
+      }
+      if (command === 'git' && args[0] === 'tag') {
+        // Verify -a flag is NOT present (lightweight tag)
+        expect(args).not.toContain('-a');
+        return Promise.resolve(0);
+      }
+      return Promise.resolve(1);
+    });
+
+    const result = await createTag(
+      {
+        tagName: 'v1.0.0',
+        sha: 'commit-sha',
+        message: '   \n\t  ',
+        gpgSign: false,
+        force: false,
+        verbose: false
+      },
+      mockLogger
+    );
+
+    expect(result.created).toBe(true);
+  });
+
+  it('should preserve multi-line messages', async () => {
+    (exec.exec as jest.Mock).mockImplementation((command, args, options) => {
+      if (command === 'git' && args[0] === 'rev-parse') {
+        if (args[1] === '--verify' && args[2]?.includes('refs/tags/')) {
+          return Promise.resolve(1);
+        }
+        if (options?.listeners?.stdout) {
+          options.listeners.stdout(Buffer.from('tag-sha-123\n'));
+        }
+        return Promise.resolve(0);
+      }
+      if (command === 'git' && args[0] === 'config' && args[1] === '--get') {
+        return Promise.resolve(1);
+      }
+      if (command === 'git' && args[0] === 'config' && args[1] === '--local') {
+        return Promise.resolve(0);
+      }
+      if (command === 'git' && args[0] === 'tag') {
+        // Verify -a flag is present (annotated tag)
+        expect(args).toContain('-a');
+        // Verify message is passed via stdin
+        expect(options?.input).toBeInstanceOf(Buffer);
+        const message = options.input.toString();
+        expect(message).toContain('Line 1');
+        expect(message).toContain('Line 2');
+        return Promise.resolve(0);
+      }
+      return Promise.resolve(1);
+    });
+
+    const multiLineMessage = 'Line 1\n\nLine 2';
+    const result = await createTag(
+      {
+        tagName: 'v1.0.0',
+        sha: 'commit-sha',
+        message: multiLineMessage,
+        gpgSign: false,
+        force: false,
+        verbose: false
+      },
+      mockLogger
+    );
+
+    expect(result.created).toBe(true);
+  });
+
   it('should return existing tag info if tag exists and force is false', async () => {
     (exec.exec as jest.Mock).mockResolvedValue(0); // tagExistsLocally returns true
 

@@ -88,7 +88,7 @@ export function getInputs(): ActionInputs {
 
   return {
     tagName: tagName.trim(),
-    tagMessage: tagMessage?.trim(),
+    tagMessage: tagMessage?.trim() || undefined, // Normalize empty strings to undefined
     tagSha: tagSha?.trim(),
     repository: repository?.trim(),
     token: token || process.env.GITHUB_TOKEN,

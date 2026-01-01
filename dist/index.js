@@ -25759,7 +25759,7 @@ function getInputs() {
     }
     return {
         tagName: tagName.trim(),
-        tagMessage: tagMessage?.trim(),
+        tagMessage: tagMessage?.trim() || undefined, // Normalize empty strings to undefined
         tagSha: tagSha?.trim(),
         repository: repository?.trim(),
         token: token || process.env.GITHUB_TOKEN,
@@ -25985,8 +25985,10 @@ async function ensureGitUserConfig(logger, userName, userEmail) {
 async function createTag(options, logger) {
     const { tagName, sha, message, gpgSign, gpgKeyId, gitUserName, gitUserEmail } = options;
     logger.info(`Creating tag: ${tagName} at ${sha}`);
+    // Normalize empty message strings to undefined (treat as lightweight tag)
+    const normalizedMessage = message?.trim() || undefined;
     // Determine if this will be an annotated tag
-    const isAnnotatedTag = !!message || gpgSign;
+    const isAnnotatedTag = !!normalizedMessage || gpgSign;
     // Ensure git user config is set for annotated tags (required by Git)
     if (isAnnotatedTag) {
         await ensureGitUserConfig(logger, gitUserName, gitUserEmail);
@@ -26018,7 +26020,7 @@ async function createTag(options, logger) {
             tagArgs.push('-u', gpgKeyId);
         }
     }
-    else if (message) {
+    else if (normalizedMessage) {
         // Only add -a flag if message is provided (annotated tag)
         tagArgs.push('-a');
     }
@@ -26027,10 +26029,10 @@ async function createTag(options, logger) {
         tagArgs.push(sha);
     }
     // Create tag
-    if (message) {
+    if (normalizedMessage) {
         logger.logGitCommand('git tag', tagArgs);
         await exec.exec('git', ['tag', ...tagArgs], {
-            input: Buffer.from(message),
+            input: Buffer.from(normalizedMessage),
             silent: !options.verbose
         });
     }

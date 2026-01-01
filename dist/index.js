@@ -26027,10 +26027,14 @@ async function createTag(options, logger) {
         if (gpgKeyId) {
             tagArgs.push('-u', gpgKeyId);
         }
+        // For GPG signed tags, use -F - to read message from stdin
+        if (normalizedMessage) {
+            tagArgs.push('-F', '-');
+        }
     }
     else if (normalizedMessage) {
         // Only add -a flag if message is provided (annotated tag)
-        tagArgs.push('-a');
+        tagArgs.push('-a', '-F', '-');
     }
     tagArgs.push(tagName);
     if (sha) {

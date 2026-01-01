@@ -109,6 +109,23 @@ describe('createTag', () => {
         return Promise.resolve(0);
       }
       if (command === 'git' && args[0] === 'tag') {
+        // Validate git tag command structure
+        // args[0] is 'tag', so 'tag' is the first element
+        expect(args[0]).toBe('tag');
+        
+        // Verify -a flag is present for annotated tags
+        expect(args).toContain('-a');
+        
+        // Verify -F - is present to read message from stdin
+        expect(args).toContain('-F');
+        const fIndex = args.indexOf('-F');
+        expect(args[fIndex + 1]).toBe('-');
+        
+        // Verify message is provided via stdin
+        expect(options?.input).toBeInstanceOf(Buffer);
+        const message = options.input.toString();
+        expect(message).toBe('Release v1.0.0');
+        
         return Promise.resolve(0);
       }
       return Promise.resolve(1);
@@ -132,7 +149,7 @@ describe('createTag', () => {
     // Verify the exact git command arguments
     expect(exec.exec).toHaveBeenCalledWith(
       'git',
-      ['tag', '-a', 'v1.0.0', 'commit-sha'],
+      ['tag', '-a', '-F', '-', 'v1.0.0', 'commit-sha'],
       expect.objectContaining({
         input: expect.any(Buffer)
       })

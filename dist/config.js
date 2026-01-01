@@ -108,9 +108,10 @@ function getInputs() {
             throw new Error(`Invalid base_url format: ${baseUrl}`);
         }
     }
+    const normalizedTagMessage = tagMessage?.trim() || undefined;
     return {
         tagName: tagName.trim(),
-        tagMessage: tagMessage?.trim(),
+        tagMessage: normalizedTagMessage, // Normalize empty strings to undefined
         tagSha: tagSha?.trim(),
         repository: repository?.trim(),
         token: token || process.env.GITHUB_TOKEN,

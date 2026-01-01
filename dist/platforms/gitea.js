@@ -42,6 +42,10 @@ class GiteaAPI {
     async createTag(options) {
         const { tagName, sha, message } = options;
         this.logger.info(`Creating Gitea tag: ${tagName} at ${sha}`);
+        // Debug logging for message
+        if (options.verbose) {
+            this.logger.debug(`Tag message: ${message === undefined ? 'undefined' : `length=${message.length}, value="${message.substring(0, 50).replace(/\n/g, '\\n')}${message.length > 50 ? '...' : ''}"`}`);
+        }
         // Check if tag exists
         const exists = await this.tagExists(tagName);
         if (exists && !options.force) {

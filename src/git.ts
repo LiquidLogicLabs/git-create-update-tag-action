@@ -183,8 +183,17 @@ export async function createTag(
 
   logger.info(`Creating tag: ${tagName} at ${sha}`);
 
+  // Debug logging for message processing
+  if (options.verbose) {
+    logger.debug(`Message before normalization: ${message === undefined ? 'undefined' : `length=${message?.length}, value="${message?.substring(0, 50).replace(/\n/g, '\\n')}${(message?.length || 0) > 50 ? '...' : ''}"`}`);
+  }
+
   // Normalize empty message strings to undefined (treat as lightweight tag)
   const normalizedMessage = message?.trim() || undefined;
+
+  if (options.verbose) {
+    logger.debug(`Message after normalization: ${normalizedMessage === undefined ? 'undefined (will create lightweight tag)' : `length=${normalizedMessage.length} (will create annotated tag)`}`);
+  }
 
   // Determine if this will be an annotated tag
   const isAnnotatedTag = !!normalizedMessage || gpgSign;

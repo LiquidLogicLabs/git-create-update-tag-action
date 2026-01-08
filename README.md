@@ -382,6 +382,13 @@ act push -e .github/workflows/release.yml
 - The `.act.env` and `.act.secrets` files are gitignored (use the `.example` files as templates)
 - You can also configure secrets in `~/.actrc` instead of using `.act.secrets`
 
+## Documentation
+
+For developers and contributors:
+
+- **[Development Guide](docs/DEVELOPMENT.md)** - Setup, development workflow, and contributing guidelines
+- **[Testing Guide](docs/TESTING.md)** - Complete testing documentation
+
 ## License
 
 MIT

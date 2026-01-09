@@ -26246,6 +26246,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.run = run;
 const core = __importStar(__nccwpck_require__(7484));
 const config_1 = __nccwpck_require__(2973);
 const logger_1 = __nccwpck_require__(6999);
@@ -26492,8 +26493,10 @@ async function run() {
         }
     }
 }
-// Run the action
-run();
+// Run the action (skip if SKIP_RUN is set, e.g., during testing)
+if (!process.env.SKIP_RUN) {
+    run();
+}
 
 
 /***/ }),
@@ -26566,11 +26569,15 @@ class Logger {
         core.error(message);
     }
     /**
-     * Log a debug message (only if verbose is enabled)
+     * Log a debug message - uses core.info() when verbose is true so it always shows
+     * Falls back to core.debug() when verbose is false (for when ACTIONS_STEP_DEBUG is set at workflow level)
      */
     debug(message) {
         if (this.verbose) {
             core.info(`[DEBUG] ${message}`);
+        }
+        else {
+            core.debug(message);
         }
     }
     /**

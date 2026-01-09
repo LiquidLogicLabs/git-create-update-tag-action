@@ -1,4 +1,5 @@
 {
+  "event_name": "workflow_dispatch",
   "inputs": {},
   "github": {
     "ref": "refs/heads/main",

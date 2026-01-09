@@ -49,7 +49,7 @@ function createPlatformAPI(
 /**
  * Main action function
  */
-async function run(): Promise<void> {
+export async function run(): Promise<void> {
   try {
     // Get and validate inputs
     const inputs = getInputs();
@@ -285,6 +285,8 @@ async function run(): Promise<void> {
   }
 }
 
-// Run the action
-run();
+// Run the action (skip if SKIP_RUN is set, e.g., during testing)
+if (!process.env.SKIP_RUN) {
+  run();
+}
 

@@ -1,0 +1,202 @@
+/**
+ * E2E tests for Bitbucket platform
+ * Tests the full action workflow with real Bitbucket API calls
+ * 
+ * Required environment variables:
+ * - TEST_BITBUCKET_REPOSITORY: Repository in owner/repo format (e.g., "owner/repo")
+ * - TEST_BITBUCKET_TOKEN: Bitbucket app password or access token
+ * - TEST_BITBUCKET_BASE_URL: Bitbucket base URL (optional, defaults to cloud)
+ * - TEST_TAG_PREFIX: Prefix for test tags (default: "test-")
+ */
+
+import * as core from '@actions/core';
+import * as exec from '@actions/exec';
+import { run } from '../index';
+import { BitbucketAPI } from '../platforms/bitbucket';
+import { Logger } from '../logger';
+import { RepositoryInfo, PlatformConfig } from '../types';
+
+jest.mock('@actions/core', () => ({
+  getInput: jest.fn(),
+  getBooleanInput: jest.fn(),
+  setOutput: jest.fn(),
+  setFailed: jest.fn(),
+  info: jest.fn(),
+  warning: jest.fn(),
+  error: jest.fn(),
+  debug: jest.fn(),
+  setSecret: jest.fn()
+}));
+
+describe('Bitbucket E2E Tests', () => {
+  const repository = process.env.TEST_BITBUCKET_REPOSITORY;
+  const token = process.env.TEST_BITBUCKET_TOKEN;
+  const baseUrl = process.env.TEST_BITBUCKET_BASE_URL || 'https://api.bitbucket.org/2.0';
+  const tagPrefix = process.env.TEST_TAG_PREFIX || 'test-';
+  const uniqueId = Date.now().toString();
+  
+  let testTagName: string;
+  let api: BitbucketAPI;
+  let repoInfo: RepositoryInfo;
+  let repoUrl: string;
+
+  beforeAll(() => {
+    // Prevent action from auto-running when imported
+    process.env.SKIP_RUN = 'true';
+    
+    if (!repository || !token) {
+      console.log('⚠️ Skipping Bitbucket E2E tests: TEST_BITBUCKET_REPOSITORY or TEST_BITBUCKET_TOKEN not set');
+      return;
+    }
+
+    const [owner, repo] = repository.split('/');
+    if (!owner || !repo) {
+      throw new Error(`Invalid repository format: ${repository}. Expected "owner/repo"`);
+    }
+
+    const urlMatch = baseUrl.match(/^(https?:\/\/[^/]+)/);
+    const host = urlMatch ? urlMatch[1].replace('api.', '') : 'https://bitbucket.org';
+    repoUrl = `${host}/${owner}/${repo}.git`;
+
+    repoInfo = {
+      owner,
+      repo,
+      platform: 'bitbucket',
+      url: repoUrl
+    };
+
+    const config: PlatformConfig = {
+      type: 'bitbucket',
+      token,
+      baseUrl,
+      ignoreCertErrors: false,
+      verbose: true,
+      pushTag: false
+    };
+
+    const logger = new Logger(true);
+    api = new BitbucketAPI(repoInfo, config, logger);
+    testTagName = `${tagPrefix}${uniqueId}`;
+  });
+
+  afterEach(async () => {
+    if (api && testTagName) {
+      try {
+        await api.deleteTag(testTagName);
+      } catch (error) {
+        // Ignore cleanup errors
+      }
+    }
+  });
+
+  it('should create a new tag via Bitbucket API', async () => {
+    if (!repository || !token) {
+      return;
+    }
+
+    const tagName = `${testTagName}-create`;
+    const commitSha = await getLatestCommitSha(repoInfo, repoUrl);
+
+    (core.getInput as jest.Mock).mockImplementation((name: string) => {
+      switch (name) {
+        case 'tag_name':
+          return tagName;
+        case 'tag_message':
+          return 'E2E test: Create tag';
+        case 'tag_sha':
+          return commitSha;
+        case 'repository':
+          return repository;
+        case 'token':
+          return token;
+        case 'repo_type':
+          return 'bitbucket';
+        case 'base_url':
+          return baseUrl;
+        default:
+          return '';
+      }
+    });
+    (core.getBooleanInput as jest.Mock).mockReturnValue(false);
+
+    await run();
+
+    const exists = await api.tagExists(tagName);
+    expect(exists).toBe(true);
+
+    expect(core.setOutput).toHaveBeenCalledWith('tag_name', tagName);
+    expect(core.setOutput).toHaveBeenCalledWith('tag_created', 'true');
+    expect(core.setOutput).toHaveBeenCalledWith('platform', 'bitbucket');
+
+    await api.deleteTag(tagName);
+  });
+
+  it('should update an existing tag via Bitbucket API', async () => {
+    if (!repository || !token) {
+      return;
+    }
+
+    const tagName = `${testTagName}-update`;
+    const commitSha = await getLatestCommitSha(repoInfo, repoUrl);
+
+    await api.createTag({
+      tagName,
+      sha: commitSha,
+      message: 'Initial tag',
+    gpgSign: false,
+      force: false,
+      verbose: false
+    });
+
+    (core.getInput as jest.Mock).mockImplementation((name: string) => {
+      switch (name) {
+        case 'tag_name':
+          return tagName;
+        case 'tag_message':
+          return 'E2E test: Updated tag';
+        case 'tag_sha':
+          return commitSha;
+        case 'repository':
+          return repository;
+        case 'token':
+          return token;
+        case 'repo_type':
+          return 'bitbucket';
+        case 'base_url':
+          return baseUrl;
+        case 'update_existing':
+          return 'true';
+        case 'force':
+          return 'true';
+        default:
+          return '';
+      }
+    });
+    (core.getBooleanInput as jest.Mock).mockImplementation((name: string) => {
+      return name === 'update_existing' || name === 'force' || name === 'verbose';
+    });
+
+    await run();
+
+    expect(core.setOutput).toHaveBeenCalledWith('tag_updated', 'true');
+    await api.deleteTag(tagName);
+  });
+});
+
+async function getLatestCommitSha(repoInfo: RepositoryInfo, repoUrl: string): Promise<string> {
+  const output: string[] = [];
+  await exec.exec('git', ['ls-remote', '--heads', repoUrl, 'main'], {
+    silent: true,
+    listeners: {
+      stdout: (data: Buffer) => {
+        output.push(data.toString());
+      }
+    }
+  });
+  
+  const sha = output.join('').split('\t')[0].trim();
+  if (!sha || sha.length !== 40) {
+    throw new Error(`Failed to get commit SHA from ${repoUrl}`);
+  }
+  return sha;
+}

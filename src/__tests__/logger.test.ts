@@ -6,6 +6,7 @@ jest.mock('@actions/core', () => ({
   info: jest.fn(),
   warning: jest.fn(),
   error: jest.fn(),
+  debug: jest.fn(),
   setSecret: jest.fn()
 }));
 
@@ -32,8 +33,9 @@ describe('Logger', () => {
       expect(core.error).toHaveBeenCalledWith('Error message');
     });
 
-    it('should not log debug messages', () => {
+    it('should log debug messages using core.debug() when verbose is false', () => {
       logger.debug('Debug message');
+      expect(core.debug).toHaveBeenCalledWith('Debug message');
       expect(core.info).not.toHaveBeenCalled();
     });
 

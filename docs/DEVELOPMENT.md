@@ -13,8 +13,8 @@ This document provides information for developers who want to contribute to this
 ### Clone the Repository
 
 ```bash
-git clone https://github.com/LiquidLogicLabs/git-create-update-tag-action.git
-cd git-create-update-tag-action
+git clone https://github.com/LiquidLogicLabs/git-action-tag-create-update.git
+cd git-action-tag-create-update
 ```
 
 ### Install Dependencies

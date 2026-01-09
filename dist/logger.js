@@ -62,11 +62,15 @@ class Logger {
         core.error(message);
     }
     /**
-     * Log a debug message (only if verbose is enabled)
+     * Log a debug message - uses core.info() when verbose is true so it always shows
+     * Falls back to core.debug() when verbose is false (for when ACTIONS_STEP_DEBUG is set at workflow level)
      */
     debug(message) {
         if (this.verbose) {
             core.info(`[DEBUG] ${message}`);
+        }
+        else {
+            core.debug(message);
         }
     }
     /**

@@ -15,6 +15,7 @@ module.exports = {
   transform: {
     '^.+\\.ts$': 'ts-jest'
   },
-  verbose: true
+  verbose: true,
+  testTimeout: 30000  // 30 second timeout for integration tests
 };
 

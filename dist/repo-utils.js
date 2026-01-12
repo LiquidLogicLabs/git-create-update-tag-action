@@ -191,4 +191,4 @@ async function getRepositoryInfo(repository, repoType, logger) {
     logger.info(`Repository: ${repoInfo.owner}/${repoInfo.repo}`);
     return repoInfo;
 }
-//# sourceMappingURL=platform-detector.js.map
+//# sourceMappingURL=repo-utils.js.map

@@ -1,5 +1,5 @@
 import { resolveToken } from '../config';
-import { getRepositoryInfo } from '../platform-detector';
+import { getRepositoryInfo } from '../repo-utils';
 import { Logger } from '../logger';
 
 describe('Token Resolution Integration Tests', () => {
@@ -36,9 +36,9 @@ describe('Token Resolution Integration Tests', () => {
       process.env.GITHUB_REPOSITORY = 'owner/repo';
 
       const repoInfo = await getRepositoryInfo(undefined, 'auto', mockLogger);
-      const resolvedToken = resolveToken(undefined, repoInfo.platform);
+      const resolvedToken = resolveToken(undefined, 'github'); // Platform detection is handled by factory, tests use explicit platform
 
-      expect(repoInfo.platform).toBe('github');
+      expect(repoInfo.platform).toBe('auto'); // Platform detection is now handled by the factory
       expect(resolvedToken).toBe('github-token-123');
     });
 
@@ -47,9 +47,9 @@ describe('Token Resolution Integration Tests', () => {
       process.env.GITHUB_REPOSITORY = 'owner/repo';
 
       const repoInfo = await getRepositoryInfo(undefined, 'auto', mockLogger);
-      const resolvedToken = resolveToken('explicit-token', repoInfo.platform);
+      const resolvedToken = resolveToken('explicit-token', 'github'); // Platform detection is handled by factory, tests use explicit platform
 
-      expect(repoInfo.platform).toBe('github');
+      expect(repoInfo.platform).toBe('auto'); // Platform detection is now handled by the factory
       expect(resolvedToken).toBe('explicit-token');
     });
 
@@ -57,9 +57,9 @@ describe('Token Resolution Integration Tests', () => {
       process.env.GITHUB_REPOSITORY = 'owner/repo';
 
       const repoInfo = await getRepositoryInfo(undefined, 'auto', mockLogger);
-      const resolvedToken = resolveToken(undefined, repoInfo.platform);
+      const resolvedToken = resolveToken(undefined, 'github'); // Platform detection is handled by factory, tests use explicit platform
 
-      expect(repoInfo.platform).toBe('github');
+      expect(repoInfo.platform).toBe('auto'); // Platform detection is now handled by the factory
       expect(resolvedToken).toBeUndefined();
     });
   });
@@ -70,9 +70,9 @@ describe('Token Resolution Integration Tests', () => {
       process.env.GITEA_REPOSITORY = 'owner/repo';
 
       const repoInfo = await getRepositoryInfo(undefined, 'gitea', mockLogger);
-      const resolvedToken = resolveToken(undefined, repoInfo.platform);
+      const resolvedToken = resolveToken(undefined, 'gitea'); // Platform detection is handled by factory, tests use explicit platform
 
-      expect(repoInfo.platform).toBe('gitea');
+      expect(repoInfo.platform).toBe('auto'); // Platform detection is now handled by the factory
       expect(resolvedToken).toBe('gitea-token-123');
     });
 
@@ -81,9 +81,9 @@ describe('Token Resolution Integration Tests', () => {
       process.env.GITEA_REPOSITORY = 'owner/repo';
 
       const repoInfo = await getRepositoryInfo(undefined, 'gitea', mockLogger);
-      const resolvedToken = resolveToken(undefined, repoInfo.platform);
+      const resolvedToken = resolveToken(undefined, 'gitea'); // Platform detection is handled by factory, tests use explicit platform
 
-      expect(repoInfo.platform).toBe('gitea');
+      expect(repoInfo.platform).toBe('auto'); // Platform detection is now handled by the factory
       expect(resolvedToken).toBe('github-token-123');
     });
 
@@ -93,9 +93,9 @@ describe('Token Resolution Integration Tests', () => {
       process.env.GITEA_REPOSITORY = 'owner/repo';
 
       const repoInfo = await getRepositoryInfo(undefined, 'gitea', mockLogger);
-      const resolvedToken = resolveToken(undefined, repoInfo.platform);
+      const resolvedToken = resolveToken(undefined, 'gitea'); // Platform detection is handled by factory, tests use explicit platform
 
-      expect(repoInfo.platform).toBe('gitea');
+      expect(repoInfo.platform).toBe('auto'); // Platform detection is now handled by the factory
       expect(resolvedToken).toBe('gitea-token-123');
     });
   });
@@ -105,17 +105,17 @@ describe('Token Resolution Integration Tests', () => {
       process.env.BITBUCKET_TOKEN = 'bitbucket-token-123';
 
       const repoInfo = await getRepositoryInfo('https://bitbucket.org/owner/repo', 'auto', mockLogger);
-      const resolvedToken = resolveToken(undefined, repoInfo.platform);
+      const resolvedToken = resolveToken(undefined, 'bitbucket'); // Platform detection is handled by factory, tests use explicit platform
 
-      expect(repoInfo.platform).toBe('bitbucket');
+      expect(repoInfo.platform).toBe('auto'); // Platform detection is now handled by the factory
       expect(resolvedToken).toBe('bitbucket-token-123');
     });
 
     it('should return undefined if BITBUCKET_TOKEN not set', async () => {
       const repoInfo = await getRepositoryInfo('https://bitbucket.org/owner/repo', 'auto', mockLogger);
-      const resolvedToken = resolveToken(undefined, repoInfo.platform);
+      const resolvedToken = resolveToken(undefined, 'bitbucket'); // Platform detection is handled by factory, tests use explicit platform
 
-      expect(repoInfo.platform).toBe('bitbucket');
+      expect(repoInfo.platform).toBe('auto'); // Platform detection is now handled by the factory
       expect(resolvedToken).toBeUndefined();
     });
   });
@@ -125,9 +125,9 @@ describe('Token Resolution Integration Tests', () => {
       process.env.GITHUB_TOKEN = 'github-token-123';
 
       const repoInfo = await getRepositoryInfo('https://example.com/owner/repo', 'generic', mockLogger);
-      const resolvedToken = resolveToken(undefined, repoInfo.platform);
+      const resolvedToken = resolveToken(undefined, 'generic'); // Platform detection is handled by factory, tests use explicit platform
 
-      expect(repoInfo.platform).toBe('generic');
+      expect(repoInfo.platform).toBe('auto'); // Platform detection is now handled by the factory
       expect(resolvedToken).toBe('github-token-123');
     });
 
@@ -137,9 +137,9 @@ describe('Token Resolution Integration Tests', () => {
       process.env.BITBUCKET_TOKEN = 'bitbucket-token-123';
 
       const repoInfo = await getRepositoryInfo('https://example.com/owner/repo', 'generic', mockLogger);
-      const resolvedToken = resolveToken(undefined, repoInfo.platform);
+      const resolvedToken = resolveToken(undefined, 'generic'); // Platform detection is handled by factory, tests use explicit platform
 
-      expect(repoInfo.platform).toBe('generic');
+      expect(repoInfo.platform).toBe('auto'); // Platform detection is now handled by the factory
       // Should prefer GITHUB_TOKEN first
       expect(resolvedToken).toBe('github-token-123');
     });
@@ -150,9 +150,9 @@ describe('Token Resolution Integration Tests', () => {
       process.env.GITHUB_TOKEN = 'github-token-123';
 
       const repoInfo = await getRepositoryInfo('https://github.com/owner/repo', 'auto', mockLogger);
-      const resolvedToken = resolveToken(undefined, repoInfo.platform);
+      const resolvedToken = resolveToken(undefined, 'github'); // Platform detection is handled by factory, tests use explicit platform
 
-      expect(repoInfo.platform).toBe('github');
+      expect(repoInfo.platform).toBe('auto'); // Platform detection is now handled by the factory
       expect(resolvedToken).toBe('github-token-123');
     });
 
@@ -160,9 +160,9 @@ describe('Token Resolution Integration Tests', () => {
       process.env.GITEA_TOKEN = 'gitea-token-123';
 
       const repoInfo = await getRepositoryInfo('https://git.ravenwolf.org/owner/repo', 'gitea', mockLogger);
-      const resolvedToken = resolveToken(undefined, repoInfo.platform);
+      const resolvedToken = resolveToken(undefined, 'gitea'); // Platform detection is handled by factory, tests use explicit platform
 
-      expect(repoInfo.platform).toBe('gitea');
+      expect(repoInfo.platform).toBe('auto'); // Platform detection is now handled by the factory
       expect(resolvedToken).toBe('gitea-token-123');
     });
   });

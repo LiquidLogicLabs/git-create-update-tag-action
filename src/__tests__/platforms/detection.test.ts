@@ -9,13 +9,20 @@ const originalFetch = global.fetch;
 
 describe('Platform Detection Functions', () => {
   const logger = new Logger(false);
+  const originalEnv = process.env;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // Clear environment variables that might affect base URL determination
+    process.env = { ...originalEnv };
+    delete process.env.GITHUB_SERVER_URL;
+    delete process.env.GITEA_SERVER_URL;
+    delete process.env.GITEA_API_URL;
   });
 
   afterEach(() => {
     global.fetch = originalFetch;
+    process.env = originalEnv;
   });
 
   describe('detectFromUrlByHostname', () => {

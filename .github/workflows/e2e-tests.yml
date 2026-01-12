@@ -9,7 +9,6 @@ permissions:
 
 jobs:
   e2e:
-    if: github.event_name != 'push' || github.ref_type != 'tag'
     runs-on: ubuntu-latest
     env:
       # Common tag prefix (matrix can override)

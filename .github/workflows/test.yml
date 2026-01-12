@@ -9,9 +9,7 @@ permissions:
 
 jobs:
   test:
-    # Always run when called via workflow_call or workflow_dispatch
-    # This workflow only has workflow_call and workflow_dispatch triggers, so it should always run
-    if: github.event_name == 'workflow_call' || github.event_name == 'workflow_dispatch'
+    # Always run - this workflow only has workflow_call and workflow_dispatch triggers
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

@@ -274,7 +274,7 @@ async function createTag(options, logger) {
     return {
         tagName,
         sha: tagSha,
-        exists: false,
+        exists,
         created: true,
         updated: exists && options.force
     };

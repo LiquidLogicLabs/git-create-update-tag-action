@@ -24,5 +24,9 @@ export declare class BitbucketAPI implements PlatformAPI {
      * Delete a tag
      */
     deleteTag(tagName: string): Promise<void>;
+    /**
+     * Get the HEAD SHA from the default branch
+     */
+    getHeadSha(): Promise<string>;
 }
 //# sourceMappingURL=bitbucket.d.ts.map

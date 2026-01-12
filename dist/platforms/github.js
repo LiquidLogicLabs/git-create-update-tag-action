@@ -106,6 +106,19 @@ class GitHubAPI {
             throw error;
         }
     }
+    /**
+     * Get the HEAD SHA from the default branch
+     */
+    async getHeadSha() {
+        // Get repository info to find default branch
+        const repoPath = `/repos/${this.repoInfo.owner}/${this.repoInfo.repo}`;
+        const repoInfo = await this.client.get(repoPath);
+        const defaultBranch = repoInfo.default_branch || 'main';
+        // Get the HEAD SHA from the default branch
+        const refPath = `/repos/${this.repoInfo.owner}/${this.repoInfo.repo}/git/ref/heads/${defaultBranch}`;
+        const refInfo = await this.client.get(refPath);
+        return refInfo.object.sha;
+    }
 }
 exports.GitHubAPI = GitHubAPI;
 //# sourceMappingURL=github.js.map

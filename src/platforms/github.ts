@@ -120,5 +120,20 @@ export class GitHubAPI implements PlatformAPI {
       throw error;
     }
   }
+
+  /**
+   * Get the HEAD SHA from the default branch
+   */
+  async getHeadSha(): Promise<string> {
+    // Get repository info to find default branch
+    const repoPath = `/repos/${this.repoInfo.owner}/${this.repoInfo.repo}`;
+    const repoInfo = await this.client.get<{ default_branch: string }>(repoPath);
+    const defaultBranch = repoInfo.default_branch || 'main';
+
+    // Get the HEAD SHA from the default branch
+    const refPath = `/repos/${this.repoInfo.owner}/${this.repoInfo.repo}/git/ref/heads/${defaultBranch}`;
+    const refInfo = await this.client.get<{ object: { sha: string } }>(refPath);
+    return refInfo.object.sha;
+  }
 }
 

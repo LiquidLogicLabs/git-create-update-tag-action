@@ -57,7 +57,7 @@ function getOptionalInput(name) {
  * Parse and validate repo type
  */
 function parseRepoType(value) {
-    const validTypes = ['github', 'gitea', 'bitbucket', 'generic', 'auto'];
+    const validTypes = ['github', 'gitea', 'bitbucket', 'generic', 'git', 'auto'];
     const normalized = value.toLowerCase();
     if (validTypes.includes(normalized)) {
         return normalized;
@@ -147,8 +147,9 @@ function resolveToken(token, platform) {
         case 'bitbucket':
             return process.env.BITBUCKET_TOKEN;
         case 'generic':
+        case 'git':
         default:
-            // For generic, try common token environment variables
+            // For generic/git, try common token environment variables
             return (process.env.GITHUB_TOKEN ||
                 process.env.GITEA_TOKEN ||
                 process.env.BITBUCKET_TOKEN);

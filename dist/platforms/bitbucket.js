@@ -104,6 +104,19 @@ class BitbucketAPI {
             throw error;
         }
     }
+    /**
+     * Get the HEAD SHA from the default branch
+     */
+    async getHeadSha() {
+        // Get repository info to find default branch
+        const repoPath = `/repositories/${this.repoInfo.owner}/${this.repoInfo.repo}`;
+        const repoInfo = await this.client.get(repoPath);
+        const defaultBranch = repoInfo.mainbranch?.name || 'main';
+        // Get the HEAD SHA from the default branch
+        const refPath = `/repositories/${this.repoInfo.owner}/${this.repoInfo.repo}/refs/branches/${defaultBranch}`;
+        const refInfo = await this.client.get(refPath);
+        return refInfo.target.hash;
+    }
 }
 exports.BitbucketAPI = BitbucketAPI;
 //# sourceMappingURL=bitbucket.js.map

@@ -40,6 +40,10 @@ describe('Gitea E2E Tests', () => {
   let repoInfo: RepositoryInfo;
   let repoUrl: string;
 
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   beforeAll(() => {
     // Prevent action from auto-running when imported
     process.env.SKIP_RUN = 'true';
@@ -96,7 +100,7 @@ describe('Gitea E2E Tests', () => {
     }
 
     const tagName = `${testTagName}-create`;
-    const commitSha = await getLatestCommitSha(repoInfo, repoUrl);
+    const commitSha = await getLatestCommitSha(repoInfo, repoUrl, token);
 
     (core.getInput as jest.Mock).mockImplementation((name: string) => {
       switch (name) {
@@ -138,7 +142,7 @@ describe('Gitea E2E Tests', () => {
     }
 
     const tagName = `${testTagName}-update`;
-    const commitSha = await getLatestCommitSha(repoInfo, repoUrl);
+    const commitSha = await getLatestCommitSha(repoInfo, repoUrl, token);
 
     await api.createTag({
       tagName,
@@ -148,6 +152,10 @@ describe('Gitea E2E Tests', () => {
       force: false,
       verbose: false
     });
+
+    const preExists = await api.tagExists(tagName);
+    expect(preExists).toBe(true);
+    console.log(`Pre-update tagExists for ${tagName}: ${preExists}`);
 
     (core.getInput as jest.Mock).mockImplementation((name: string) => {
       switch (name) {
@@ -179,14 +187,33 @@ describe('Gitea E2E Tests', () => {
 
     await run();
 
+    const postExists = await api.tagExists(tagName);
+    console.log(`Post-update tagExists for ${tagName}: ${postExists}`);
+    console.log(`setOutput calls: ${JSON.stringify((core.setOutput as jest.Mock).mock.calls, null, 2)}`);
+    console.log(`getBooleanInput calls: ${JSON.stringify((core.getBooleanInput as jest.Mock).mock.calls, null, 2)}`);
+    console.log(`getInput calls: ${JSON.stringify((core.getInput as jest.Mock).mock.calls, null, 2)}`);
+
     expect(core.setOutput).toHaveBeenCalledWith('tag_updated', 'true');
     await api.deleteTag(tagName);
   });
 });
 
-async function getLatestCommitSha(repoInfo: RepositoryInfo, repoUrl: string): Promise<string> {
+async function getLatestCommitSha(
+  repoInfo: RepositoryInfo,
+  repoUrl: string,
+  token?: string
+): Promise<string> {
+  let authUrl = repoUrl;
+  if (token && repoUrl.startsWith('https://')) {
+    const u = new URL(repoUrl);
+    // Use token as password with a dummy username to satisfy basic auth
+    u.username = 'token';
+    u.password = token;
+    authUrl = u.toString();
+  }
+
   const output: string[] = [];
-  await exec.exec('git', ['ls-remote', '--heads', repoUrl, 'main'], {
+  await exec.exec('git', ['ls-remote', '--heads', authUrl, 'main'], {
     silent: true,
     listeners: {
       stdout: (data: Buffer) => {

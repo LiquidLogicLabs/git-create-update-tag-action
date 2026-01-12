@@ -156,6 +156,17 @@ describe('getInputs', () => {
     expect(inputs.repoType).toBe('github');
   });
 
+  it('should parse git repo_type correctly', () => {
+    (core.getInput as jest.Mock).mockImplementation((name: string) => {
+      if (name === 'tag_name') return 'v1.0.0';
+      if (name === 'repo_type') return 'git';
+      return '';
+    });
+
+    const inputs = getInputs();
+    expect(inputs.repoType).toBe('git');
+  });
+
   it('should throw error for invalid repo_type', () => {
     (core.getInput as jest.Mock).mockImplementation((name: string) => {
       if (name === 'tag_name') return 'v1.0.0';
@@ -290,6 +301,11 @@ describe('resolveToken', () => {
   it('should fallback to BITBUCKET_TOKEN for generic if others not set', () => {
     process.env.BITBUCKET_TOKEN = 'bitbucket-token';
     expect(resolveToken(undefined, 'generic')).toBe('bitbucket-token');
+  });
+
+  it('should try common tokens for git platform (same as generic)', () => {
+    process.env.GITHUB_TOKEN = 'github-token';
+    expect(resolveToken(undefined, 'git')).toBe('github-token');
   });
 
   it('should return undefined if no token env vars are set', () => {

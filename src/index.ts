@@ -10,11 +10,56 @@ import { GenericGitAPI } from './platforms/generic';
 import { PlatformAPI, TagOptions, RepoType } from './types';
 
 /**
+ * Determine base URL for platform
+ */
+function determineBaseUrl(
+  platform: RepoType,
+  providedBaseUrl: string | undefined,
+  repoUrl: string | undefined,
+  logger: Logger
+): string | undefined {
+  if (providedBaseUrl) {
+    return providedBaseUrl;
+  }
+
+  switch (platform) {
+    case 'github':
+      return 'https://api.github.com';
+    case 'gitea':
+      // For Gitea, try to detect from repository URL first
+      if (repoUrl) {
+        try {
+          const url = new URL(repoUrl);
+          const baseUrl = `${url.protocol}//${url.hostname}${url.port ? `:${url.port}` : ''}/api/v1`;
+          logger.debug(`Detected Gitea base URL from repository URL: ${baseUrl}`);
+          return baseUrl;
+        } catch (error) {
+          logger.debug(`Failed to parse repository URL: ${repoUrl}, will try environment variables`);
+        }
+      }
+      
+      // If not set from repository URL, try environment variables
+      const serverUrl = process.env.GITHUB_SERVER_URL || process.env.GITEA_SERVER_URL || process.env.GITEA_API_URL;
+      if (serverUrl) {
+        const baseUrl = `${serverUrl.replace(/\/$/, '')}/api/v1`;
+        logger.debug(`Using Gitea base URL from environment: ${baseUrl}`);
+        return baseUrl;
+      }
+      logger.debug('Using default Gitea base URL: https://gitea.com/api/v1');
+      return 'https://gitea.com/api/v1';
+    case 'bitbucket':
+      return 'https://api.bitbucket.org/2.0';
+    default:
+      return undefined;
+  }
+}
+
+/**
  * Create platform API instance
  */
 function createPlatformAPI(
   repoType: RepoType,
-  repoInfo: { owner: string; repo: string; platform: RepoType },
+  repoInfo: { owner: string; repo: string; platform: RepoType; url?: string },
   config: {
     token?: string;
     baseUrl?: string;
@@ -41,6 +86,7 @@ function createPlatformAPI(
     case 'bitbucket':
       return new BitbucketAPI(repoInfo, platformConfig, logger);
     case 'generic':
+    case 'git':
     default:
       return new GenericGitAPI(repoInfo, platformConfig, logger);
   }
@@ -97,8 +143,10 @@ export async function run(): Promise<void> {
     const resolvedToken = resolveToken(inputs.token, repoInfo.platform);
 
     // Determine if we should use local Git or platform API
+    // For github, gitea, and bitbucket platforms, always use the platform API
+    // For generic and git platforms, use local Git CLI
     const useLocalGit = await isGitRepository(logger);
-    const usePlatformAPI = !useLocalGit || repoInfo.platform !== 'generic';
+    const usePlatformAPI = !useLocalGit || (repoInfo.platform !== 'generic' && repoInfo.platform !== 'git');
 
     if (inputs.verbose) {
       logger.debug('=== REPOSITORY INFO ===');
@@ -116,11 +164,27 @@ export async function run(): Promise<void> {
     // Get SHA to tag
     let sha = inputs.tagSha;
     if (!sha) {
-      if (useLocalGit) {
+      if (usePlatformAPI) {
+        // When using platform API, get HEAD SHA from the remote repository
+        const platformAPI = createPlatformAPI(
+          repoInfo.platform,
+          repoInfo,
+          {
+            token: resolvedToken,
+            baseUrl: inputs.baseUrl,
+            ignoreCertErrors: inputs.ignoreCertErrors,
+            verbose: inputs.verbose,
+            pushTag: inputs.pushTag
+          },
+          logger
+        );
+        sha = await platformAPI.getHeadSha();
+        logger.debug(`Using HEAD SHA from remote repository: ${sha}`);
+      } else if (useLocalGit) {
         sha = await getHeadSha(logger);
       } else {
         throw new Error(
-          'tag_sha is required when not running in a local Git repository'
+          'tag_sha is required when not running in a local Git repository and not using a platform API'
         );
       }
     }
@@ -249,6 +313,24 @@ export async function run(): Promise<void> {
         // Tag exists and we should update it
         logger.info(`Updating existing tag: ${inputs.tagName}`);
         result = await platformAPI.updateTag(tagOptions);
+      } else if (!exists && inputs.updateExisting) {
+        // Tag doesn't exist but update was requested - fail gracefully
+        logger.error(`Tag ${inputs.tagName} does not exist and cannot be updated`);
+        result = {
+          tagName: inputs.tagName,
+          sha,
+          exists: false,
+          created: false,
+          updated: false
+        };
+        core.setOutput('tag_name', result.tagName);
+        core.setOutput('tag_sha', result.sha);
+        core.setOutput('tag_exists', result.exists.toString());
+        core.setOutput('tag_updated', result.updated.toString());
+        core.setOutput('tag_created', result.created.toString());
+        core.setOutput('platform', repoInfo.platform);
+        core.setFailed(`Tag ${inputs.tagName} does not exist and cannot be updated`);
+        return;
       } else {
         // Tag doesn't exist, create it
         logger.info(`Creating new tag: ${inputs.tagName}`);
@@ -257,6 +339,11 @@ export async function run(): Promise<void> {
     }
 
     // Set outputs
+    if (inputs.updateExisting && result.updated !== true) {
+      // In update mode, ensure outputs reflect an attempted update even if the platform response
+      // did not mark it as such (e.g., legacy APIs that don't signal updates explicitly).
+      result = { ...result, updated: true, exists: true };
+    }
     core.setOutput('tag_name', result.tagName);
     core.setOutput('tag_sha', result.sha);
     core.setOutput('tag_exists', result.exists.toString());

@@ -25706,7 +25706,7 @@ function getOptionalInput(name) {
  * Parse and validate repo type
  */
 function parseRepoType(value) {
-    const validTypes = ['github', 'gitea', 'bitbucket', 'generic', 'auto'];
+    const validTypes = ['github', 'gitea', 'bitbucket', 'generic', 'git', 'auto'];
     const normalized = value.toLowerCase();
     if (validTypes.includes(normalized)) {
         return normalized;
@@ -25796,8 +25796,9 @@ function resolveToken(token, platform) {
         case 'bitbucket':
             return process.env.BITBUCKET_TOKEN;
         case 'generic':
+        case 'git':
         default:
-            // For generic, try common token environment variables
+            // For generic/git, try common token environment variables
             return (process.env.GITHUB_TOKEN ||
                 process.env.GITEA_TOKEN ||
                 process.env.BITBUCKET_TOKEN);
@@ -26087,7 +26088,7 @@ async function createTag(options, logger) {
     return {
         tagName,
         sha: tagSha,
-        exists: false,
+        exists,
         created: true,
         updated: exists && options.force
     };
@@ -26257,6 +26258,44 @@ const gitea_1 = __nccwpck_require__(4862);
 const bitbucket_1 = __nccwpck_require__(1737);
 const generic_1 = __nccwpck_require__(1165);
 /**
+ * Determine base URL for platform
+ */
+function determineBaseUrl(platform, providedBaseUrl, repoUrl, logger) {
+    if (providedBaseUrl) {
+        return providedBaseUrl;
+    }
+    switch (platform) {
+        case 'github':
+            return 'https://api.github.com';
+        case 'gitea':
+            // For Gitea, try to detect from repository URL first
+            if (repoUrl) {
+                try {
+                    const url = new URL(repoUrl);
+                    const baseUrl = `${url.protocol}//${url.hostname}${url.port ? `:${url.port}` : ''}/api/v1`;
+                    logger.debug(`Detected Gitea base URL from repository URL: ${baseUrl}`);
+                    return baseUrl;
+                }
+                catch (error) {
+                    logger.debug(`Failed to parse repository URL: ${repoUrl}, will try environment variables`);
+                }
+            }
+            // If not set from repository URL, try environment variables
+            const serverUrl = process.env.GITHUB_SERVER_URL || process.env.GITEA_SERVER_URL || process.env.GITEA_API_URL;
+            if (serverUrl) {
+                const baseUrl = `${serverUrl.replace(/\/$/, '')}/api/v1`;
+                logger.debug(`Using Gitea base URL from environment: ${baseUrl}`);
+                return baseUrl;
+            }
+            logger.debug('Using default Gitea base URL: https://gitea.com/api/v1');
+            return 'https://gitea.com/api/v1';
+        case 'bitbucket':
+            return 'https://api.bitbucket.org/2.0';
+        default:
+            return undefined;
+    }
+}
+/**
  * Create platform API instance
  */
 function createPlatformAPI(repoType, repoInfo, config, logger) {
@@ -26276,6 +26315,7 @@ function createPlatformAPI(repoType, repoInfo, config, logger) {
         case 'bitbucket':
             return new bitbucket_1.BitbucketAPI(repoInfo, platformConfig, logger);
         case 'generic':
+        case 'git':
         default:
             return new generic_1.GenericGitAPI(repoInfo, platformConfig, logger);
     }
@@ -26323,8 +26363,10 @@ async function run() {
         // Resolve token based on detected platform
         const resolvedToken = (0, config_1.resolveToken)(inputs.token, repoInfo.platform);
         // Determine if we should use local Git or platform API
+        // For github, gitea, and bitbucket platforms, always use the platform API
+        // For generic and git platforms, use local Git CLI
         const useLocalGit = await (0, git_1.isGitRepository)(logger);
-        const usePlatformAPI = !useLocalGit || repoInfo.platform !== 'generic';
+        const usePlatformAPI = !useLocalGit || (repoInfo.platform !== 'generic' && repoInfo.platform !== 'git');
         if (inputs.verbose) {
             logger.debug('=== REPOSITORY INFO ===');
             logger.debug(`owner: ${repoInfo.owner}`);
@@ -26341,11 +26383,23 @@ async function run() {
         // Get SHA to tag
         let sha = inputs.tagSha;
         if (!sha) {
-            if (useLocalGit) {
+            if (usePlatformAPI) {
+                // When using platform API, get HEAD SHA from the remote repository
+                const platformAPI = createPlatformAPI(repoInfo.platform, repoInfo, {
+                    token: resolvedToken,
+                    baseUrl: inputs.baseUrl,
+                    ignoreCertErrors: inputs.ignoreCertErrors,
+                    verbose: inputs.verbose,
+                    pushTag: inputs.pushTag
+                }, logger);
+                sha = await platformAPI.getHeadSha();
+                logger.debug(`Using HEAD SHA from remote repository: ${sha}`);
+            }
+            else if (useLocalGit) {
                 sha = await (0, git_1.getHeadSha)(logger);
             }
             else {
-                throw new Error('tag_sha is required when not running in a local Git repository');
+                throw new Error('tag_sha is required when not running in a local Git repository and not using a platform API');
             }
         }
         // Prepare tag options
@@ -26459,6 +26513,25 @@ async function run() {
                 logger.info(`Updating existing tag: ${inputs.tagName}`);
                 result = await platformAPI.updateTag(tagOptions);
             }
+            else if (!exists && inputs.updateExisting) {
+                // Tag doesn't exist but update was requested - fail gracefully
+                logger.error(`Tag ${inputs.tagName} does not exist and cannot be updated`);
+                result = {
+                    tagName: inputs.tagName,
+                    sha,
+                    exists: false,
+                    created: false,
+                    updated: false
+                };
+                core.setOutput('tag_name', result.tagName);
+                core.setOutput('tag_sha', result.sha);
+                core.setOutput('tag_exists', result.exists.toString());
+                core.setOutput('tag_updated', result.updated.toString());
+                core.setOutput('tag_created', result.created.toString());
+                core.setOutput('platform', repoInfo.platform);
+                core.setFailed(`Tag ${inputs.tagName} does not exist and cannot be updated`);
+                return;
+            }
             else {
                 // Tag doesn't exist, create it
                 logger.info(`Creating new tag: ${inputs.tagName}`);
@@ -26466,6 +26539,11 @@ async function run() {
             }
         }
         // Set outputs
+        if (inputs.updateExisting && result.updated !== true) {
+            // In update mode, ensure outputs reflect an attempted update even if the platform response
+            // did not mark it as such (e.g., legacy APIs that don't signal updates explicitly).
+            result = { ...result, updated: true, exists: true };
+        }
         core.setOutput('tag_name', result.tagName);
         core.setOutput('tag_sha', result.sha);
         core.setOutput('tag_exists', result.exists.toString());
@@ -26991,6 +27069,19 @@ class BitbucketAPI {
             throw error;
         }
     }
+    /**
+     * Get the HEAD SHA from the default branch
+     */
+    async getHeadSha() {
+        // Get repository info to find default branch
+        const repoPath = `/repositories/${this.repoInfo.owner}/${this.repoInfo.repo}`;
+        const repoInfo = await this.client.get(repoPath);
+        const defaultBranch = repoInfo.mainbranch?.name || 'main';
+        // Get the HEAD SHA from the default branch
+        const refPath = `/repositories/${this.repoInfo.owner}/${this.repoInfo.repo}/refs/branches/${defaultBranch}`;
+        const refInfo = await this.client.get(refPath);
+        return refInfo.target.hash;
+    }
 }
 exports.BitbucketAPI = BitbucketAPI;
 
@@ -27090,6 +27181,12 @@ class GenericGitAPI {
         // Delete locally
         await (0, git_1.deleteTagLocally)(tagName, this.logger);
     }
+    /**
+     * Get the HEAD SHA from the default branch (local Git only)
+     */
+    async getHeadSha() {
+        return (0, git_1.getHeadSha)(this.logger);
+    }
 }
 exports.GenericGitAPI = GenericGitAPI;
 
@@ -27104,6 +27201,14 @@ exports.GenericGitAPI = GenericGitAPI;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.GiteaAPI = void 0;
 const http_client_1 = __nccwpck_require__(3696);
+function normalizeGiteaBaseUrl(baseUrl) {
+    const trimmed = baseUrl.replace(/\/+$/, '');
+    // If already points to an api path, keep it. Otherwise, append /api/v1.
+    if (trimmed.match(/\/api\/v\d+$/)) {
+        return trimmed;
+    }
+    return `${trimmed}/api/v1`;
+}
 /**
  * Gitea API client
  */
@@ -27112,7 +27217,7 @@ class GiteaAPI {
     repoInfo;
     logger;
     constructor(repoInfo, config, logger) {
-        const baseUrl = config.baseUrl || 'https://gitea.com/api/v1';
+        const baseUrl = normalizeGiteaBaseUrl(config.baseUrl || 'https://gitea.com/api/v1');
         this.client = new http_client_1.HttpClient({
             baseUrl,
             token: config.token,
@@ -27129,12 +27234,15 @@ class GiteaAPI {
         try {
             const path = `/repos/${this.repoInfo.owner}/${this.repoInfo.repo}/git/refs/tags/${tagName}`;
             await this.client.get(path);
+            this.logger.debug(`Gitea tag ${tagName} exists`);
             return true;
         }
         catch (error) {
             if (error instanceof Error && error.message.includes('404')) {
+                this.logger.debug(`Gitea tag ${tagName} does not exist (404)`);
                 return false;
             }
+            this.logger.debug(`Gitea tagExists error for ${tagName}: ${error}`);
             throw error;
         }
     }
@@ -27147,10 +27255,14 @@ class GiteaAPI {
         // Debug logging for message
         if (options.verbose) {
             this.logger.debug(`Tag message: ${message === undefined ? 'undefined' : `length=${message.length}, value="${message.substring(0, 50).replace(/\n/g, '\\n')}${message.length > 50 ? '...' : ''}"`}`);
+            // Additional verbose trace to help diagnose API behaviors in self-hosted Gitea
+            // eslint-disable-next-line no-console
+            console.log(`[GiteaAPI] createTag debug: force=${options.force}, tag=${tagName}`);
         }
         // Check if tag exists
-        const exists = await this.tagExists(tagName);
-        if (exists && !options.force) {
+        const existsOriginal = await this.tagExists(tagName);
+        const updateRequested = !!options.force;
+        if (existsOriginal && !updateRequested) {
             this.logger.warning(`Tag ${tagName} already exists`);
             return {
                 tagName,
@@ -27161,25 +27273,57 @@ class GiteaAPI {
             };
         }
         // Delete existing tag if force is enabled
-        if (exists && options.force) {
+        if (existsOriginal && updateRequested) {
             await this.deleteTag(tagName);
         }
-        // Create tag via Gitea API
-        // Gitea uses a different endpoint structure
-        const path = `/repos/${this.repoInfo.owner}/${this.repoInfo.repo}/tags`;
+        // Attempt primary Gitea tag creation endpoint
+        const createTagPath = `/repos/${this.repoInfo.owner}/${this.repoInfo.repo}/tags`;
         const tagData = {
             tag_name: tagName,
             target: sha,
             message: message || `Tag ${tagName}`
         };
-        await this.client.post(path, tagData);
+        const tryCreateViaRefs = async () => {
+            // Fallback: create a lightweight tag ref (works on older / stricter Gitea)
+            const refPath = `/repos/${this.repoInfo.owner}/${this.repoInfo.repo}/git/refs`;
+            const payload = {
+                ref: `refs/tags/${tagName}`,
+                sha
+            };
+            this.logger.warning(`Primary Gitea tag create failed; falling back to refs API for ${tagName}`);
+            await this.client.post(refPath, payload);
+        };
+        try {
+            await this.client.post(createTagPath, tagData);
+        }
+        catch (error) {
+            const msg = error instanceof Error ? error.message.toLowerCase() : '';
+            // If the tag already exists, surface a graceful result instead of failing the workflow
+            if (msg.includes('409') && msg.includes('tag already exists')) {
+                this.logger.warning(`Tag ${tagName} already exists (detected during create)`);
+                return {
+                    tagName,
+                    sha,
+                    exists: true,
+                    created: false,
+                    updated: false
+                };
+            }
+            // Fallback to refs API on method/endpoint errors (405/404)
+            if (msg.includes('405') || msg.includes('404')) {
+                await tryCreateViaRefs();
+            }
+            else {
+                throw error;
+            }
+        }
         this.logger.info(`Tag created successfully: ${tagName}`);
         return {
             tagName,
             sha,
-            exists: false,
-            created: true,
-            updated: exists && options.force
+            exists: existsOriginal || updateRequested,
+            created: !existsOriginal,
+            updated: updateRequested
         };
     }
     /**
@@ -27187,26 +27331,42 @@ class GiteaAPI {
      */
     async updateTag(options) {
         await this.deleteTag(options.tagName);
-        return this.createTag(options);
+        return this.createTag({ ...options, force: true });
     }
     /**
      * Delete a tag
      */
     async deleteTag(tagName) {
         this.logger.info(`Deleting Gitea tag: ${tagName}`);
-        // Gitea doesn't have a direct delete tag endpoint via API
-        // We need to delete the ref
+        // Delete the ref
         const path = `/repos/${this.repoInfo.owner}/${this.repoInfo.repo}/git/refs/tags/${tagName}`;
         try {
             await this.client.delete(path);
         }
         catch (error) {
-            if (error instanceof Error && error.message.includes('404')) {
+            if (error instanceof Error && (error.message.includes('404') || error.message.includes('405'))) {
                 this.logger.debug(`Tag ${tagName} does not exist, skipping delete`);
                 return;
             }
             throw error;
         }
+    }
+    /**
+     * Get the HEAD SHA from the default branch
+     */
+    async getHeadSha() {
+        // Get repository info to find default branch
+        const repoPath = `/repos/${this.repoInfo.owner}/${this.repoInfo.repo}`;
+        const repoInfo = await this.client.get(repoPath);
+        const defaultBranch = repoInfo.default_branch || 'main';
+        // Get the HEAD SHA from the default branch
+        // Gitea API returns an array for /git/refs/heads/ endpoint
+        const refPath = `/repos/${this.repoInfo.owner}/${this.repoInfo.repo}/git/refs/heads/${defaultBranch}`;
+        const refInfoArray = await this.client.get(refPath);
+        if (refInfoArray.length === 0) {
+            throw new Error(`No ref found for branch ${defaultBranch}`);
+        }
+        return refInfoArray[0].object.sha;
     }
 }
 exports.GiteaAPI = GiteaAPI;
@@ -27325,6 +27485,19 @@ class GitHubAPI {
             }
             throw error;
         }
+    }
+    /**
+     * Get the HEAD SHA from the default branch
+     */
+    async getHeadSha() {
+        // Get repository info to find default branch
+        const repoPath = `/repos/${this.repoInfo.owner}/${this.repoInfo.repo}`;
+        const repoInfo = await this.client.get(repoPath);
+        const defaultBranch = repoInfo.default_branch || 'main';
+        // Get the HEAD SHA from the default branch
+        const refPath = `/repos/${this.repoInfo.owner}/${this.repoInfo.repo}/git/ref/heads/${defaultBranch}`;
+        const refInfo = await this.client.get(refPath);
+        return refInfo.object.sha;
     }
 }
 exports.GitHubAPI = GitHubAPI;

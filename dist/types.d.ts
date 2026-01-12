@@ -1,7 +1,7 @@
 /**
  * Supported repository/platform types
  */
-export type RepoType = 'github' | 'gitea' | 'bitbucket' | 'generic' | 'auto';
+export type RepoType = 'github' | 'gitea' | 'bitbucket' | 'generic' | 'git' | 'auto';
 /**
  * Tag type (determined by presence of message)
  */
@@ -102,6 +102,10 @@ export interface PlatformAPI {
      * Delete a tag
      */
     deleteTag(tagName: string): Promise<void>;
+    /**
+     * Get the HEAD SHA from the default branch of the remote repository
+     */
+    getHeadSha(): Promise<string>;
 }
 /**
  * HTTP client options for platform APIs

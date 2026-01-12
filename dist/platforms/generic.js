@@ -87,6 +87,12 @@ class GenericGitAPI {
         // Delete locally
         await (0, git_1.deleteTagLocally)(tagName, this.logger);
     }
+    /**
+     * Get the HEAD SHA from the default branch (local Git only)
+     */
+    async getHeadSha() {
+        return (0, git_1.getHeadSha)(this.logger);
+    }
 }
 exports.GenericGitAPI = GenericGitAPI;
 //# sourceMappingURL=generic.js.map

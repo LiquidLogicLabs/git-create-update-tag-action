@@ -117,5 +117,12 @@ export class GenericGitAPI implements PlatformAPI {
     // Delete locally
     await deleteTagLocally(tagName, this.logger);
   }
+
+  /**
+   * Get the HEAD SHA from the default branch (local Git only)
+   */
+  async getHeadSha(): Promise<string> {
+    return getHeadSha(this.logger);
+  }
 }
 

@@ -117,5 +117,20 @@ export class BitbucketAPI implements PlatformAPI {
       throw error;
     }
   }
+
+  /**
+   * Get the HEAD SHA from the default branch
+   */
+  async getHeadSha(): Promise<string> {
+    // Get repository info to find default branch
+    const repoPath = `/repositories/${this.repoInfo.owner}/${this.repoInfo.repo}`;
+    const repoInfo = await this.client.get<{ mainbranch: { name: string } }>(repoPath);
+    const defaultBranch = repoInfo.mainbranch?.name || 'main';
+
+    // Get the HEAD SHA from the default branch
+    const refPath = `/repositories/${this.repoInfo.owner}/${this.repoInfo.repo}/refs/branches/${defaultBranch}`;
+    const refInfo = await this.client.get<{ target: { hash: string } }>(refPath);
+    return refInfo.target.hash;
+  }
 }
 

@@ -25,5 +25,9 @@ export declare class GenericGitAPI implements PlatformAPI {
      * Delete a tag
      */
     deleteTag(tagName: string): Promise<void>;
+    /**
+     * Get the HEAD SHA from the default branch (local Git only)
+     */
+    getHeadSha(): Promise<string>;
 }
 //# sourceMappingURL=generic.d.ts.map

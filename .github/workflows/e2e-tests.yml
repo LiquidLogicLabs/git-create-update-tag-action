@@ -3,64 +3,58 @@ name: E2E Tests
 on:
   workflow_call:  # Called by release workflow
   workflow_dispatch:  # Allow manual triggering
-    inputs:
-      platform:
-        description: 'Platform to test (github, gitea, bitbucket, generic, all)'
-        required: false
-        default: 'all'
-        type: choice
-        options:
-          - all
-          - github
-          - gitea
-          - bitbucket
-          - generic
 
 permissions:
-  contents: read
-  # Write permissions needed for creating test tags
-  contents: write
+  contents: write  # needed for creating test tags
 
 jobs:
-  # Test GitHub platform
-  e2e-github:
-    if: (github.event_name != 'push' || github.ref_type != 'tag') && (github.event.inputs.platform == 'all' || github.event.inputs.platform == 'github' || github.event.inputs.platform == '')
+  e2e:
+    if: github.event_name != 'push' || github.ref_type != 'tag'
     runs-on: ubuntu-latest
-    permissions:
-      contents: write  # Needed to create/delete test tags
-      actions: read  # Needed to read repository info
-    environment: test-github
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    env:
+      # Common tag prefix (matrix can override)
+      TEST_TAG_PREFIX: ${{ matrix.tagPrefix || 'test-' }}
+      # GitHub
+      TEST_GITHUB_REPOSITORY: ${{ matrix.githubRepo || secrets.TEST_GITHUB_REPOSITORY || github.repository }}
+      TEST_GITHUB_TOKEN: ${{ secrets.TEST_GITHUB_TOKEN || secrets.GITHUB_TOKEN || '' }}
+      # Gitea
+      TEST_GITEA_REPOSITORY: ${{ matrix.giteaRepo || secrets.TEST_GITEA_REPOSITORY || '' }}
+      TEST_GITEA_TOKEN: ${{ secrets.TEST_GITEA_TOKEN || '' }}
+      TEST_GITEA_BASE_URL: ${{ matrix.giteaBaseUrl || '' }}
+      # Bitbucket
+      TEST_BITBUCKET_REPOSITORY: ${{ matrix.bitbucketRepo || secrets.TEST_BITBUCKET_REPOSITORY || '' }}
+      TEST_BITBUCKET_TOKEN: ${{ secrets.TEST_BITBUCKET_TOKEN || '' }}
+      TEST_BITBUCKET_BASE_URL: ${{ matrix.bitbucketBaseUrl || '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: github
+            testPattern: github.e2e
+            githubRepo: LiquidLogicLabs/git-action-release-tests
+            tagPrefix: test-
+          - platform: gitea
+            testPattern: gitea.e2e
+            giteaBaseUrl: https://git.ravenwolf.org
+            giteaRepo: l3io/git-action-release-tests
+            tagPrefix: test-
+          # - platform: bitbucket
+          #   testPattern: bitbucket.e2e
+          #   bitbucketBaseUrl: https://bitbucket.org
+          #   bitbucketRepo: owner/repo
+          #   tagPrefix: test-
+          - platform: generic
+            testPattern: generic.e2e
+            tagPrefix: test-
+          - platform: git
+            testPattern: generic.e2e
+            tagPrefix: test-
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
+    environment: TEST
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-
-      - name: Run GitHub E2E tests
-        env:
-          TEST_GITHUB_REPOSITORY: ${{ secrets.TEST_GITHUB_REPOSITORY || env.GITHUB_REPOSITORY }}
-          TEST_GITHUB_TOKEN: ${{ secrets.TEST_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
-          TEST_TAG_PREFIX: ${{ secrets.TEST_TAG_PREFIX || 'test-' }}
-        run: npm run test:e2e -- --testPathPattern=github.e2e
-
-  # Test Gitea platform
-  e2e-gitea:
-    if: (github.event_name != 'push' || github.ref_type != 'tag') && (github.event.inputs.platform == 'all' || github.event.inputs.platform == 'gitea' || github.event.inputs.platform == '')
-    runs-on: ubuntu-latest
     permissions:
       contents: write
       actions: read
-    environment: test-gitea
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -77,80 +71,66 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Run Gitea E2E tests
-        env:
-          TEST_GITEA_REPOSITORY: ${{ secrets.TEST_GITEA_REPOSITORY }}
-          TEST_GITEA_TOKEN: ${{ secrets.TEST_GITEA_TOKEN }}
-          TEST_GITEA_BASE_URL: ${{ secrets.TEST_GITEA_BASE_URL }}
-          TEST_TAG_PREFIX: ${{ secrets.TEST_TAG_PREFIX || 'test-' }}
+      - name: Prepare tag metadata
+        id: prep
         run: |
-          if [ -z "$TEST_GITEA_REPOSITORY" ] || [ -z "$TEST_GITEA_TOKEN" ]; then
-            echo "⚠️ Skipping Gitea E2E tests: TEST_GITEA_REPOSITORY or TEST_GITEA_TOKEN not configured"
-            exit 0
-          fi
-          npm run test:e2e -- --testPathPattern=gitea.e2e
+          TAG_NAME="${{ matrix.tagPrefix || 'test-' }}${GITHUB_RUN_ID}-${{ matrix.platform }}-${GITHUB_RUN_ATTEMPT}"
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
 
-  # Test Bitbucket platform
-  e2e-bitbucket:
-    if: (github.event_name != 'push' || github.ref_type != 'tag') && (github.event.inputs.platform == 'all' || github.event.inputs.platform == 'bitbucket' || github.event.inputs.platform == '')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      actions: read
-    environment: test-bitbucket
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-
-      - name: Run Bitbucket E2E tests
-        env:
-          TEST_BITBUCKET_REPOSITORY: ${{ secrets.TEST_BITBUCKET_REPOSITORY }}
-          TEST_BITBUCKET_TOKEN: ${{ secrets.TEST_BITBUCKET_TOKEN }}
-          TEST_BITBUCKET_BASE_URL: ${{ secrets.TEST_BITBUCKET_BASE_URL }}
-          TEST_TAG_PREFIX: ${{ secrets.TEST_TAG_PREFIX || 'test-' }}
+      - name: Resolve platform inputs
+        id: resolve
         run: |
-          if [ -z "$TEST_BITBUCKET_REPOSITORY" ] || [ -z "$TEST_BITBUCKET_TOKEN" ]; then
-            echo "⚠️ Skipping Bitbucket E2E tests: TEST_BITBUCKET_REPOSITORY or TEST_BITBUCKET_TOKEN not configured"
-            exit 0
-          fi
-          npm run test:e2e -- --testPathPattern=bitbucket.e2e
+          set -euo pipefail
+          run="true"
+          repo=""
+          token=""
+          base_url=""
+          case "${{ matrix.platform }}" in
+            github)
+              repo="${TEST_GITHUB_REPOSITORY}"
+              token="${TEST_GITHUB_TOKEN}"
+              if [ -z "$repo" ] || [ -z "$token" ]; then
+                echo "⚠️ Skipping GitHub E2E: repo or token missing"
+                run="false"
+              fi
+              ;;
+            gitea)
+              repo="${TEST_GITEA_REPOSITORY}"
+              token="${TEST_GITEA_TOKEN}"
+              base_url="${TEST_GITEA_BASE_URL}"
+              if [ -z "$repo" ] || [ -z "$token" ]; then
+                echo "⚠️ Skipping Gitea E2E: repo or token missing"
+                run="false"
+              fi
+              ;;
+            bitbucket)
+              repo="${TEST_BITBUCKET_REPOSITORY}"
+              token="${TEST_BITBUCKET_TOKEN}"
+              base_url="${TEST_BITBUCKET_BASE_URL}"
+              if [ -z "$repo" ] || [ -z "$token" ]; then
+                echo "⚠️ Skipping Bitbucket E2E: repo or token missing"
+                run="false"
+              fi
+              ;;
+            generic|git)
+              run="true"
+              ;;
+          esac
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "repo=$repo" >> "$GITHUB_OUTPUT"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+          echo "base_url=$base_url" >> "$GITHUB_OUTPUT"
 
-  # Test Generic Git platform (local Git CLI)
-  e2e-generic:
-    if: (github.event_name != 'push' || github.ref_type != 'tag') && (github.event.inputs.platform == 'all' || github.event.inputs.platform == 'generic' || github.event.inputs.platform == '')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      actions: read
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Run E2E via action (${{ matrix.platform }})
+        if: steps.resolve.outputs.run == 'true'
+        uses: ./
         with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-
-      - name: Run Generic E2E tests
-        env:
-          TEST_TAG_PREFIX: ${{ secrets.TEST_TAG_PREFIX || 'test-' }}
-        run: npm run test:e2e -- --testPathPattern=generic.e2e
+          tag_name: ${{ steps.prep.outputs.tag_name }}
+          tag_message: E2E ${{ matrix.platform }} tag ${{ steps.prep.outputs.tag_name }}
+          repository: ${{ steps.resolve.outputs.repo }}
+          token: ${{ steps.resolve.outputs.token }}
+          base_url: ${{ steps.resolve.outputs.base_url }}
+          repo_type: ${{ matrix.platform }}
+          force: true
+          update_existing: false
+          verbose: true

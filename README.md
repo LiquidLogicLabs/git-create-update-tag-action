@@ -174,7 +174,7 @@ A GitHub Action that creates or updates Git tags on local or remote repositories
 | `update_existing` | Whether to update existing tags (default: false) | No | `false` |
 | `gpg_sign` | Whether to GPG sign the tag (default: false) | No | `false` |
 | `gpg_key_id` | GPG key ID to use for signing | No | - |
-| `repo_type` | Repository type ('github', 'gitea', 'bitbucket', 'generic', 'auto'). Default: 'auto' (auto-detect from repository URL) | No | `auto` |
+| `repo_type` | Repository type ('github', 'gitea', 'bitbucket', 'generic', 'git', 'auto'). Default: 'auto' (auto-detect from repository URL). 'git' and 'generic' are equivalent aliases for local Git CLI operations. | No | `auto` |
 | `base_url` | Base URL for self-hosted instances | No | Platform default |
 | `ignore_cert_errors` | Ignore SSL certificate errors (default: false) | No | `false` |
 | `force` | Force update even if tag exists (default: false) | No | `false` |

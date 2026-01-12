@@ -313,26 +313,8 @@ export async function run(): Promise<void> {
         // Tag exists and we should update it
         logger.info(`Updating existing tag: ${inputs.tagName}`);
         result = await platformAPI.updateTag(tagOptions);
-      } else if (!exists && inputs.updateExisting) {
-        // Tag doesn't exist but update was requested - fail gracefully
-        logger.error(`Tag ${inputs.tagName} does not exist and cannot be updated`);
-        result = {
-          tagName: inputs.tagName,
-          sha,
-          exists: false,
-          created: false,
-          updated: false
-        };
-        core.setOutput('tag_name', result.tagName);
-        core.setOutput('tag_sha', result.sha);
-        core.setOutput('tag_exists', result.exists.toString());
-        core.setOutput('tag_updated', result.updated.toString());
-        core.setOutput('tag_created', result.created.toString());
-        core.setOutput('platform', repoInfo.platform);
-        core.setFailed(`Tag ${inputs.tagName} does not exist and cannot be updated`);
-        return;
       } else {
-        // Tag doesn't exist, create it
+        // Tag doesn't exist, create it (whether update_existing is true or false)
         logger.info(`Creating new tag: ${inputs.tagName}`);
         result = await platformAPI.createTag(tagOptions);
       }

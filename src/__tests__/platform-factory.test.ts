@@ -23,7 +23,17 @@ describe('platform-factory', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     // Mock git exec to return no origin URL (simulate no git remote)
-    (exec.exec as jest.Mock).mockRejectedValue(new Error('No remote origin'));
+    // Use mockImplementation to handle the specific git config command
+    (exec.exec as jest.Mock).mockImplementation((command: string, args: string[]) => {
+      if (command === 'git' && args && args[0] === 'config' && args[1] === '--get' && args[2] === 'remote.origin.url') {
+        return Promise.reject(new Error('No remote origin'));
+      }
+      // For any other git commands, also reject to be safe
+      if (command === 'git') {
+        return Promise.reject(new Error('Git command not mocked'));
+      }
+      return Promise.resolve(0);
+    });
     // Clear environment variables that might affect platform detection
     process.env = { ...originalEnv };
     delete process.env.GITHUB_SERVER_URL;
